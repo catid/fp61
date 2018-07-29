@@ -4,7 +4,8 @@
 This software implements arithmetic modulo the Mersenne prime p = 2^61-1.
 
 It takes advantage of the commonly available fast 64x64->128 multiplier
-to accelerate finite (base) field arithmetic.
+to accelerate finite (base) field arithmetic.  So it runs a lot faster
+when built into a 64-bit executable.
 
 This math code offers full use of lazy reduction techniques,
 via fp61_partial_reduce() and fp61_reduce().
