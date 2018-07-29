@@ -19,44 +19,45 @@ I wrote the library to benchmark this field for software erasure codes.
 Supported arithmetic operations: Add, Negation, Multiply, Mul Inverse.
 Subtraction is implemented via Negation.
 
-[code]
-uint64_t fp61_neg(uint64_t x)
+Negation:
+
+    uint64_t fp61_neg(uint64_t x)
 
 	x = -x (without full reduction modulo p)
 	Preconditions: x <= p
 	The result will be <= p
-[/code]
 
-[code]
-uint64_t fp61_partial_reduce(uint64_t x)
+Partial Reduction from <2^64 to <2^62:
+
+    uint64_t fp61_partial_reduce(uint64_t x)
 
 	Partially reduce a value (mod p)
 	This clears bits #63 and #62.
 	The result can be passed directly to fp61_add4() or fp61_mul().
-[/code]
 
-[code]
-uint64_t fp61_reduce_finalize(uint64_t x)
+Final Reduction from <2^62 to <2^61-1:
+
+    uint64_t fp61_reduce_finalize(uint64_t x)
 
 	Finalize reduction of a value (mod p) that was partially reduced
 	Preconditions: Bits #63 and #62 are clear.
 	The result is less than p.
-[/code]
 
-[code]
-uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
+Chained Addition of Four Values:
+
+    uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
 
 	x + y (without full reduction modulo p).
 	The result can be passed directly to fp61_add4() or fp61_mul().
-[/code]
 
-[code]
+You can also use normal addition but you have to be careful about bit overflow.
+
 For subtraction, use fp61_neg() and fp61_add4().
 As in: x + (-y)
-[/code]
 
-[code]
-uint64_t fp61_mul(uint64_t x, uint64_t y)
+Multiplication:
+
+    uint64_t fp61_mul(uint64_t x, uint64_t y)
 
     x * y (without reduction modulo p)
 
@@ -79,16 +80,15 @@ uint64_t fp61_mul(uint64_t x, uint64_t y)
 
         The result is stored in bits #61 to #0 (62 bits of the word).
         Call fp61_final_reduce() to reduce the result to 61 bits.
-[/code]
 
-[code]
-uint64_t fp61_inv(uint64_t x)
+Modular Multiplicative Inverse:
+
+    uint64_t fp61_inv(uint64_t x)
 
 	x^-1 (mod p)
 	Precondition: x < p
 	Call fp61_reduce() if needed to ensure the precondition.
 	This operation is not constant-time.
-[/code]
 
 
 #### Compare to Fp=2^127-1:
