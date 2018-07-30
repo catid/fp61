@@ -77,6 +77,14 @@
     }
 #endif
 
+// Compiler-specific force inline keyword
+#ifdef _MSC_VER
+# define FP61_FORCE_INLINE inline __forceinline
+#else
+# define FP61_FORCE_INLINE inline __attribute__((always_inline))
+#endif
+
+
 
 //------------------------------------------------------------------------------
 // Constants
@@ -91,69 +99,84 @@ static const uint64_t kMask63 = ((uint64_t)1 << 63) - 1;
 //------------------------------------------------------------------------------
 // API
 
-// x = -x (without reduction modulo p)
-// Preconditions: x <= p
-// The result will be <= p
-inline uint64_t fp61_neg(uint64_t x)
-{
-    return kFp61Prime - x;
-}
+/**
+    fp61_partial_reduce()
 
-// Partially reduce a value (mod p)
-// This clears bits #63 and #62.
-// The result can be passed directly to fp61_add4() or fp61_mul().
-inline uint64_t fp61_partial_reduce(uint64_t x)
+    Partially reduce a value (mod p).  This clears bits #63 and #62.
+
+    The result can be passed directly to fp61_add4(), fp61_mul(),
+    and fp61_reduce_finalize().
+*/
+FP61_FORCE_INLINE uint64_t fp61_partial_reduce(uint64_t x)
 {
     // Eliminate bits #63 to #61, which may carry back up into bit #61,
     // So we will only definitely reduce #63 and #62.
     return (x & kFp61Prime) + (x >> 61); // 0 <= result <= 2^62 - 1
 }
 
-// Finalize reduction of a value (mod p) that was partially reduced
-// Preconditions: Bits #63 and #62 are clear.
-// The result is less than p.
-inline uint64_t fp61_reduce_finalize(uint64_t x)
+/**
+    fp61_reduce_finalize()
+
+    Finalize reduction of a value (mod p) that was partially reduced
+    Preconditions: Bits #63 and #62 are clear and x != 0x3ffffffffffffffeULL
+
+    This function fails for x = 0x3ffffffffffffffeULL.
+    The partial reduction function does not produce this bit pattern for any
+    input, so this exception is allowed because I'm assuming the input comes
+    from fp61_partial_reduce().  So, do not mask down to 62 random bits and
+    pass to this function because it can fail in this one case.
+
+    Returns a value less than p.
+*/
+FP61_FORCE_INLINE uint64_t fp61_reduce_finalize(uint64_t x)
 {
-    // Eliminate #61.  The +1 also handles the case where x = p.
-    return (x + ((x + 1) >> 61)) & kFp61Prime; // 0 <= result < p
+    // Eliminate #61.
+    // The +1 also handles the case where x = p and x = 0x3fffffffffffffffULL.
+    // I don't see a way to tweak this to handle 0x3ffffffffffffffeULL...
+    return (x + ((x+1) >> 61)) & kFp61Prime; // 0 <= result < p
 }
 
-// x + y + z + w (without full reduction modulo p).
-// Preconditions: x,y,z,w <2^62
-// The result can be passed directly to fp61_add4() or fp61_mul().
-inline uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
+/**
+    fp61_add4()
+
+    Sum x + y + z + w (without full reduction modulo p).
+    Preconditions: x,y,z,w <2^62
+
+    Probably you will want to just inline this code and follow the pattern,
+    since being restricted to adding 4 things at a time is kind of weird.
+
+    The result can be passed directly to fp61_add4(), fp61_mul(), and
+    fp61_reduce_finalize().
+*/
+FP61_FORCE_INLINE uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
 {
     return fp61_partial_reduce(x + y + z + w);
 }
 
+/**
+    fp61_neg()
+
+    x = -x (without reduction modulo p)
+    Preconditions: x <= p
+
+    The input needs to be have bits #63 #62 #61 cleared.
+    This can be ensured by calling fp61_partial_reduce() and
+    fp61_reduce_finalize() first.  Since this is more expensive than addition
+    it is best to reorganize operations to avoid needing this reduction.
+
+    Return a value <= p.
+*/
+FP61_FORCE_INLINE uint64_t fp61_neg(uint64_t x)
+{
+    return kFp61Prime - x;
+}
+
 // For subtraction, use fp61_neg() and fp61_add4().
 
-/*
-    Largest x,y = p - 1 = 2^61 - 2 = L.
+/**
+    fp61_mul()
 
-    L*L = (2^61-2) * (2^61-2)
-        = 2^(61+61) - 4*2^61 + 4
-        = 2^122 - 2^63 + 4
-    That is the high 6 bits are zero.
-
-    We represent the product as two 64-bit words, or 128 bits.
-
-    Say the low bit bit #64 is set in the high word.
-    To eliminate this bit we need to subtract (2^61 - 1) * 2^3.
-    This means we need to add a bit at #3.
-    Similarly for bit #65 we need to add a bit at #4.
-
-    High bits #127 to #125 affect high bits #66 to #64.
-    High bits #124 to #64 affect low bits #63 to #3.
-    Low bits #63 to #61 affect low bits #2 to #0.
-
-    If we eliminate from high bits to low bits, then we could carry back
-    up into the high bits again.  So we should instead eliminate bits #61
-    through #63 first to prevent carries into the high word.
-*/
-
-/*
-    x * y (without reduction modulo p)
+    x * y (with partial reduction modulo p)
 
     Important Input Restriction:
 
@@ -175,10 +198,34 @@ inline uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
         The result is stored in bits #61 to #0 (62 bits of the word).
         Call fp61_final_reduce() to reduce the result to 61 bits.
 */
-inline uint64_t fp61_mul(uint64_t x, uint64_t y)
+FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
 {
     uint64_t p_lo, p_hi;
     CAT_MUL128(p_hi, p_lo, x, y);
+
+    /*
+        Largest x,y = p - 1 = 2^61 - 2 = L.
+
+        L*L = (2^61-2) * (2^61-2)
+            = 2^(61+61) - 4*2^61 + 4
+            = 2^122 - 2^63 + 4
+        That is the high 6 bits are zero.
+
+        We represent the product as two 64-bit words, or 128 bits.
+
+        Say the low bit bit #64 is set in the high word.
+        To eliminate this bit we need to subtract (2^61 - 1) * 2^3.
+        This means we need to add a bit at #3.
+        Similarly for bit #65 we need to add a bit at #4.
+
+        High bits #127 to #125 affect high bits #66 to #64.
+        High bits #124 to #64 affect low bits #63 to #3.
+        Low bits #63 to #61 affect low bits #2 to #0.
+
+        If we eliminate from high bits to low bits, then we could carry back
+        up into the high bits again.  So we should instead eliminate bits #61
+        through #63 first to prevent carries into the high word.
+    */
 
     // Eliminate bits #63 to #61, which may carry back up into bit #61,
     // So we will only definitely reduce #63 and #62.
@@ -189,14 +236,30 @@ inline uint64_t fp61_mul(uint64_t x, uint64_t y)
     // prevents the addition from overflowing the 64-bit word.
     r += ((p_hi << 3) & kMask63);
 
+    // This last reduction step is not strictly necessary, but is almost always
+    // a good idea when used to implement some algorithm, so I include it.
     // Partially reduce the result to clear the high 2 bits.
     return fp61_partial_reduce(r);
 }
 
-// x^-1 (mod p)
-// Precondition: 0 < x < p
-// Call fp61_reduce() if needed to ensure the precondition.
-// This operation is not constant-time.
+/**
+    fp61_inv()
+
+    x^-1 (mod p)
+    Precondition: 0 < x < p
+
+    Call fp61_partial_reduce() followed by fp61_reduce_finalize() if needed to
+    ensure the precondition.
+
+    This operation is kind of heavy so it should be avoided where possible.
+
+    This operation is not constant-time.
+    A constant-time version can be implemented using Euler's totient method and
+    a straight line similar to https://github.com/catid/snowshoe/blob/master/src/fp.inc#L545
+
+    Returns the multiplicative inverse of x modulo p.
+    0 < result < p
+*/
 uint64_t fp61_inv(uint64_t x);
 
 
