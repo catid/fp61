@@ -32,17 +32,19 @@
 // specialized for the prime.  It handles any input.
 uint64_t fp61_inv(uint64_t u)
 {
-    uint64_t qt = u / kFp61Prime;
-    uint64_t u3 = u % kFp61Prime;
-    uint64_t u1 = 1;
+    uint64_t u1, u3, v1, v3, qt;
+
+    qt = u / kFp61Prime;
+    u3 = u % kFp61Prime;
+    u1 = 1;
 
     if (u3 == 0) {
         return 0; // No inverse
     }
 
     qt = kFp61Prime / u3;
-    uint64_t v3 = kFp61Prime % u3;
-    uint64_t v1 = qt;
+    v3 = kFp61Prime % u3;
+    v1 = qt;
 
     for (;;)
     {
