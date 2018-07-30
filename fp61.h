@@ -84,24 +84,32 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
         -------------
                 00
              10 10     MIDDLE PART
-        +    01 01
+        +       01
         -------------
+             01 
         + 11 11        HIGH PART
         -------------
     */
-    const uint64_t middle = (p01 + p10) + (p00 >> 32);
+
+    // 64-bit product + two 32-bit values
+    const uint64_t middle = p10 + (p00 >> 32) + (uint32_t)p01;
+
     /*
-        Proof that the MIDDLE PART does not overflow:
-        Max value we can get for p01 and p01 = 2^32-1.
-        (2^32-1)^2 + (2^32-1) = 2^64 - 2^32 - 2^32 + 1 + 2^32 - 1 = 2^64 - 2^32
-        Therefore it cannot overflow.
+        Proof that 64-bit products can accumulate two more 32-bit values
+        without overflowing:
+
+        Max 32-bit value is 2^32 - 1.
+        PSum = (2^32-1) * (2^32-1) + (2^32-1) + (2^32-1)
+             = 2^64 - 2^32 - 2^32 + 1 + 2^32 - 1 + 2^32 - 1
+             = 2^64 - 1
+        Therefore it cannot overflow regardless of input.
     */
 
-    // Add HIGH PART and upper half of MIDDLE PART
-    r_hi = p11 + (middle >> 32);
+    // 64-bit product + two 32-bit values
+    r_hi = p11 + (middle >> 32) + (p01 >> 32);
 
     // Add LOW PART and lower half of MIDDLE PART
-    return (middle << 32) | (uint32_t)(p00);
+    return (middle << 32) | (uint32_t)p00;
 }
 
 #if defined(_MSC_VER) && defined(_WIN64)
@@ -129,7 +137,6 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
     r_lo = Emulate64x64to128(r_hi, x, y);
 
 #endif // End CAT_MUL128
-
 
 
 //------------------------------------------------------------------------------

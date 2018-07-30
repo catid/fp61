@@ -33,6 +33,13 @@ using namespace std;
 static const uint64_t MASK61 = ((uint64_t)1 << 61) - 1;
 static const uint64_t MASK62 = ((uint64_t)1 << 62) - 1;
 static const uint64_t MASK63 = ((uint64_t)1 << 63) - 1;
+static const uint64_t MASK64 = ~(uint64_t)0;
+static const uint64_t MASK64_NO62 = MASK64 ^ ((uint64_t)1 << 62);
+static const uint64_t MASK64_NO61 = MASK64 ^ ((uint64_t)1 << 61);
+static const uint64_t MASK64_NO60 = MASK64 ^ ((uint64_t)1 << 60);
+static const uint64_t MASK63_NO61 = MASK63 ^ ((uint64_t)1 << 61);
+static const uint64_t MASK63_NO60 = MASK63 ^ ((uint64_t)1 << 60);
+static const uint64_t MASK62_NO60 = MASK62 ^ ((uint64_t)1 << 60);
 
 #if defined(FP61_DEBUG)
 static const unsigned kRandomTestLoops = 100000;
@@ -237,42 +244,57 @@ static bool TestPartialReduction()
 {
     // Input can have any bit set
 
-    // Small values
     for (uint64_t x = 0; x < 1000; ++x) {
         if (!test_pred(x)) {
             return false;
         }
     }
-
-    const uint64_t largest = ~(uint64_t)0;
-
-    // Largest values
-    for (uint64_t x = largest; x > largest - 1000; --x) {
+    for (uint64_t x = MASK64; x > MASK64 - 1000; --x) {
         if (!test_pred(x)) {
             return false;
         }
     }
-
-    const uint64_t msb_off = ((uint64_t)1 << 63) - 1;
-
-    // #63 off
-    for (uint64_t x = msb_off; x > msb_off - 1000; --x) {
+    for (uint64_t x = MASK64_NO62 + 1000; x > MASK64_NO62 - 1000; --x) {
         if (!test_pred(x)) {
             return false;
         }
     }
-
-    const uint64_t nsb_off = largest ^ ((uint64_t)1 << 62);
-
-    // #62 off
-    for (uint64_t x = nsb_off + 1000; x > nsb_off - 1000; --x) {
+    for (uint64_t x = MASK64_NO61 + 1000; x > MASK64_NO61 - 1000; --x) {
         if (!test_pred(x)) {
             return false;
         }
     }
-
-    // Around the prime
-    for (uint64_t x = kFp61Prime + 1000; x > kFp61Prime - 1000; --x) {
+    for (uint64_t x = MASK64_NO60 + 1000; x > MASK64_NO60 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK63; x > MASK63 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK63_NO61 + 1000; x > MASK63_NO61 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK63_NO60 + 1000; x > MASK63_NO60 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK62 + 1000; x > MASK62 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK62_NO60 + 1000; x > MASK62_NO60 - 1000; --x) {
+        if (!test_pred(x)) {
+            return false;
+        }
+    }
+    for (uint64_t x = MASK61 + 1000; x > MASK61 - 1000; --x) {
         if (!test_pred(x)) {
             return false;
         }
@@ -320,33 +342,22 @@ static bool TestFinalizeReduction()
 {
     // Input has #63 and #62 clear, other bits can take on any value
 
-    // Small values
     for (uint64_t x = 0; x < 1000; ++x) {
         if (!test_fred(x)) {
             return false;
         }
     }
-
-    const uint64_t largest = ((uint64_t)1 << 62) - 1;
-
-    // Largest values
-    for (uint64_t x = largest; x > largest - 1000; --x) {
+    for (uint64_t x = MASK62; x > MASK62 - 1000; --x) {
         if (!test_fred(x)) {
             return false;
         }
     }
-
-    const uint64_t nsb_off = largest ^ ((uint64_t)1 << 61);
-
-    // #61 off
-    for (uint64_t x = nsb_off + 1000; x > nsb_off - 1000; --x) {
+    for (uint64_t x = MASK62_NO60 + 1000; x > MASK62_NO60 - 1000; --x) {
         if (!test_fred(x)) {
             return false;
         }
     }
-
-    // Around the prime
-    for (uint64_t x = kFp61Prime + 1000; x > kFp61Prime - 1000; --x) {
+    for (uint64_t x = MASK61 + 1000; x > MASK61 - 1000; --x) {
         if (!test_fred(x)) {
             return false;
         }
@@ -405,9 +416,29 @@ static bool TestMultiply()
 {
     // Number of bits between x, y must be 124 or fewer.
 
-    // Small values
     for (uint64_t x = 0; x < 1000; ++x) {
         for (uint64_t y = x; y < 1000; ++y) {
+            if (!test_mul(x, y)) {
+                return false;
+            }
+        }
+    }
+    for (uint64_t x = MASK62; x > MASK62 - 1000; --x) {
+        for (uint64_t y = x; y > MASK62 - 1000; --y) {
+            if (!test_mul(x, y)) {
+                return false;
+            }
+        }
+    }
+    for (uint64_t x = MASK62_NO60 + 1000; x > MASK62_NO60 - 1000; --x) {
+        for (uint64_t y = x; y > MASK62_NO60 - 1000; --y) {
+            if (!test_mul(x, y)) {
+                return false;
+            }
+        }
+    }
+    for (uint64_t x = MASK61 + 1000; x > MASK61 - 1000; --x) {
+        for (uint64_t y = x; y > MASK61 - 1000; --y) {
             if (!test_mul(x, y)) {
                 return false;
             }
@@ -437,6 +468,34 @@ static bool TestMultiply()
         if (!test_mul(x, y)) {
             return false;
         }
+    }
+
+    // Commutivity test
+    for (unsigned i = 0; i < kRandomTestLoops; ++i)
+    {
+        uint64_t x = prng.Next64() & MASK62;
+        uint64_t y = prng.Next64() & MASK62;
+        uint64_t z = prng.Next64() & MASK62;
+
+        uint64_t r = fp61_reduce_finalize(fp61_mul(fp61_mul(z, y), x));
+        uint64_t s = fp61_reduce_finalize(fp61_mul(fp61_mul(x, z), y));
+        uint64_t t = fp61_reduce_finalize(fp61_mul(fp61_mul(x, y), z));
+
+        if (r != s || s != t) {
+            cout << "TestMultiply failed (does not commute) for i=" << i << endl;
+            FP61_DEBUG_BREAK();
+            return false;
+        }
+    }
+
+    // Direct function test
+    uint64_t r1, r0;
+    r0 = Emulate64x64to128(r1, MASK64, MASK64);
+
+    if (r1 != 0xfffffffffffffffe || r0 != 1) {
+        cout << "TestMultiply failed (Emulate64x64to128 failed)" << endl;
+        FP61_DEBUG_BREAK();
+        return false;
     }
 
     return true;
