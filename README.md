@@ -101,7 +101,6 @@ Multiplication:
 
         The result is stored in bits #61 to #0 (62 bits of the word).
         Call fp61_final_reduce() to reduce the result to 61 bits.
-*/
 
 Modular Multiplicative Inverse:
 
