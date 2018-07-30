@@ -154,9 +154,9 @@ FP61_FORCE_INLINE uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_
 }
 
 /**
-    fp61_neg()
+    r = fp61_neg(x)
 
-    x = -x (without reduction modulo p)
+    r = -x (without reduction modulo p)
     Preconditions: x <= p
 
     The input needs to be have bits #63 #62 #61 cleared.
@@ -174,9 +174,9 @@ FP61_FORCE_INLINE uint64_t fp61_neg(uint64_t x)
 // For subtraction, use fp61_neg() and fp61_add4().
 
 /**
-    fp61_mul()
+    r = fp61_mul(x, y)
 
-    x * y (with partial reduction modulo p)
+    r = x * y (with partial reduction modulo p)
 
     Important Input Restriction:
 
@@ -243,13 +243,10 @@ FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
 }
 
 /**
-    fp61_inv()
+    r = fp61_inv(x)
 
-    x^-1 (mod p)
-    Precondition: 0 < x < p
-
-    Call fp61_partial_reduce() followed by fp61_reduce_finalize() if needed to
-    ensure the precondition.
+    r = x^-1 (mod p)
+    The input value x can be any 64-bit value.
 
     This operation is kind of heavy so it should be avoided where possible.
 
@@ -259,6 +256,8 @@ FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
 
     Returns the multiplicative inverse of x modulo p.
     0 < result < p
+
+    If the inverse does not exist, it returns 0.
 */
 uint64_t fp61_inv(uint64_t x);
 

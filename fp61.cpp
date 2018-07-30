@@ -28,40 +28,40 @@
 
 #include "fp61.h"
 
-uint64_t fp61_inv(uint64_t x)
+// This is an unrolled implementation of Knuth's unsigned version of the eGCD,
+// specialized for the prime.  It handles any input.
+uint64_t fp61_inv(uint64_t u)
 {
-    if (x <= 1) {
-        return x;
+    uint64_t u1, u3, v1, v3, q;
+
+    q = u / kFp61Prime;
+    u3 = u % kFp61Prime;
+    u1 = 1;
+
+    if (u3 == 0) {
+        return 0; // No inverse
     }
 
-    int64_t s0, s1, r0, r1;
+    q = kFp61Prime / u3;
+    v3 = kFp61Prime % u3;
+    v1 = q;
 
-    // Compute the next remainder
-    uint64_t uq = static_cast<uint64_t>(kFp61Prime) / x;
-
-    // Store the results
-    r0 = x;
-    r1 = kFp61Prime - static_cast<int64_t>(uq * x);
-    s0 = 1;
-    s1 = -static_cast<int64_t>(uq);
-
-    while (r1 != 1)
+    for (;;)
     {
-        int64_t q, r, s;
+        if (v3 == 0) {
+            return u3 != 1 ? 0 : u1;
+        }
 
-        q = r0 / r1;
-        r = r0 - (q * r1);
-        s = s0 - (q * s1);
+        q = u3 / v3;
+        u3 %= v3;
+        u1 += q * v1;
 
-        r0 = r1;
-        r1 = r;
-        s0 = s1;
-        s1 = s;
+        if (u3 == 0) {
+            return v3 != 1 ? 0 : kFp61Prime - v1;
+        }
+
+        q = v3 / u3;
+        v3 %= u3;
+        v1 += q * u1;
     }
-
-    if (s1 < 0) {
-        s1 += kFp61Prime;
-    }
-
-    return static_cast<uint64_t>(s1);
 }

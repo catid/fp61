@@ -20,47 +20,67 @@ I wrote the library to benchmark this field for software erasure codes.
 Supported arithmetic operations: Add, Negation, Multiply, Mul Inverse.
 Subtraction is implemented via Negation.
 
-Negation:
-
-    uint64_t fp61_neg(uint64_t x)
-
-	x = -x (without full reduction modulo p)
-	Preconditions: x <= p
-	The result will be <= p
-
 Partial Reduction from full 64 bits to 62 bits:
 
-    uint64_t fp61_partial_reduce(uint64_t x)
+    fp61_partial_reduce()
 
-	Partially reduce a value (mod p)
-	This clears bits #63 and #62.
-	The result can be passed directly to fp61_add4() or fp61_mul().
+    Partially reduce a value (mod p).  This clears bits #63 and #62.
+
+    The result can be passed directly to fp61_add4(), fp61_mul(),
+    and fp61_reduce_finalize().
 
 Final Reduction from 64 bits to <p (within the field Fp):
 
-    uint64_t fp61_reduce_finalize(uint64_t x)
+    fp61_reduce_finalize()
 
-	Finalize reduction of a value (mod p) that was partially reduced
-	Preconditions: Bits #63 and #62 are clear.
-	The result is less than p.
+    Finalize reduction of a value (mod p) that was partially reduced
+    Preconditions: Bits #63 and #62 are clear and x != 0x3ffffffffffffffeULL
+
+    This function fails for x = 0x3ffffffffffffffeULL.
+    The partial reduction function does not produce this bit pattern for any
+    input, so this exception is allowed because I'm assuming the input comes
+    from fp61_partial_reduce().  So, do not mask down to 62 random bits and
+    pass to this function because it can fail in this one case.
+
+    Returns a value less than p.
 
 Chained Addition of Four Values:
 
-    uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
+    fp61_add4()
 
-	x + y + z + w (without full reduction modulo p).
-	The result can be passed directly to fp61_add4() or fp61_mul().
+    Sum x + y + z + w (without full reduction modulo p).
+    Preconditions: x,y,z,w <2^62
+
+    Probably you will want to just inline this code and follow the pattern,
+    since being restricted to adding 4 things at a time is kind of weird.
+
+    The result can be passed directly to fp61_add4(), fp61_mul(), and
+    fp61_reduce_finalize().
 
 You can also use normal addition but you have to be careful about bit overflow.
+
+Negation:
+
+    r = fp61_neg(x)
+
+    r = -x (without reduction modulo p)
+    Preconditions: x <= p
+
+    The input needs to be have bits #63 #62 #61 cleared.
+    This can be ensured by calling fp61_partial_reduce() and
+    fp61_reduce_finalize() first.  Since this is more expensive than addition
+    it is best to reorganize operations to avoid needing this reduction.
+
+    Return a value <= p.
 
 For subtraction, use fp61_neg() and fp61_add4().
 As in: x + (-y)
 
 Multiplication:
 
-    uint64_t fp61_mul(uint64_t x, uint64_t y)
+    r = fp61_mul(x, y)
 
-    x * y (without reduction modulo p)
+    r = x * y (with partial reduction modulo p)
 
     Important Input Restriction:
 
@@ -81,15 +101,25 @@ Multiplication:
 
         The result is stored in bits #61 to #0 (62 bits of the word).
         Call fp61_final_reduce() to reduce the result to 61 bits.
+*/
 
 Modular Multiplicative Inverse:
 
-    uint64_t fp61_inv(uint64_t x)
+    r = fp61_inv(x)
 
-	x^-1 (mod p)
-	Precondition: x < p
-	Call fp61_reduce() if needed to ensure the precondition.
-	This operation is not constant-time.
+    r = x^-1 (mod p)
+    The input value x can be any 64-bit value.
+
+    This operation is kind of heavy so it should be avoided where possible.
+
+    This operation is not constant-time.
+    A constant-time version can be implemented using Euler's totient method and
+    a straight line similar to https://github.com/catid/snowshoe/blob/master/src/fp.inc#L545
+
+    Returns the multiplicative inverse of x modulo p.
+    0 < result < p
+
+    If the inverse does not exist, it returns 0.
 
 
 #### Compare to Fp=2^127-1:

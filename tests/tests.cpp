@@ -449,21 +449,44 @@ static bool TestMultiply()
 static bool test_inv(uint64_t x)
 {
     uint64_t i = fp61_inv(x);
+
+    // If no inverse existed:
+    if (i == 0) {
+        // Then it must have evenly divided
+        if (x % kFp61Prime == 0) {
+            return true;
+        }
+        // Otherwise this should have had a result
+        cout << "TestMulInverse failed (no result) for x=" << HexString(x) << endl;
+        FP61_DEBUG_BREAK();
+        return false;
+    }
+
+    // Result must be in Fp
     if (i >= kFp61Prime) {
         cout << "TestMulInverse failed (result too large) for x=" << HexString(x) << endl;
         FP61_DEBUG_BREAK();
         return false;
     }
+
+    // mul requires partially reduced input
+    x = fp61_partial_reduce(x);
+
     uint64_t p = fp61_mul(x, i);
+
+    // If result is not 1 then it is not a multiplicative inverse
     if (fp61_reduce_finalize(p) != 1) {
         cout << "TestMulInverse failed (finalized result not 1) for x=" << HexString(x) << endl;
         FP61_DEBUG_BREAK();
         return false;
     }
+
+    // Double check the reduce function...
     if (p % kFp61Prime != 1) {
         cout << "TestMulInverse failed (remainder not 1) for x=" << HexString(x) << endl;
         return false;
     }
+
     return true;
 }
 
@@ -483,7 +506,7 @@ static bool TestMulInverse()
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() % kFp61Prime;
+        uint64_t x = prng.Next64();
 
         if (!test_inv(x)) {
             return false;
