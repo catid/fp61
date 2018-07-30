@@ -42,7 +42,8 @@
     when built into a 64-bit executable.
 
     This math code offers full use of lazy reduction techniques,
-    via fp61_partial_reduce() and fp61_reduce().
+    via fp61_partial_reduce().
+
     + Addition of 8 values can be evaluated before reduction.
     + Sums of 4 products can be evaluated with partial reductions.
 */
@@ -117,7 +118,7 @@ inline uint64_t fp61_reduce_finalize(uint64_t x)
     return (x + ((x + 1) >> 61)) & kFp61Prime; // 0 <= result < p
 }
 
-// x + y (without full reduction modulo p).
+// x + y + z + w (without full reduction modulo p).
 // Preconditions: x,y,z,w <2^62
 // The result can be passed directly to fp61_add4() or fp61_mul().
 inline uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
