@@ -8,7 +8,7 @@ to accelerate finite (base) field arithmetic.  So it runs a lot faster
 when built into a 64-bit executable.
 
 This math code offers full use of lazy reduction techniques,
-via fp61_partial_reduce() and fp61_reduce().
+via fp61_partial_reduce().
 + Addition of 8 values can be evaluated before reduction.
 + Sums of 4 products can be evaluated with partial reductions.
 
@@ -28,7 +28,7 @@ Negation:
 	Preconditions: x <= p
 	The result will be <= p
 
-Partial Reduction from <2^64 to <2^62:
+Partial Reduction from full 64 bits to 62 bits:
 
     uint64_t fp61_partial_reduce(uint64_t x)
 
@@ -36,7 +36,7 @@ Partial Reduction from <2^64 to <2^62:
 	This clears bits #63 and #62.
 	The result can be passed directly to fp61_add4() or fp61_mul().
 
-Final Reduction from <2^62 to <2^61-1:
+Final Reduction from 64 bits to <p (within the field Fp):
 
     uint64_t fp61_reduce_finalize(uint64_t x)
 
@@ -48,7 +48,7 @@ Chained Addition of Four Values:
 
     uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
 
-	x + y (without full reduction modulo p).
+	x + y + z + w (without full reduction modulo p).
 	The result can be passed directly to fp61_add4() or fp61_mul().
 
 You can also use normal addition but you have to be careful about bit overflow.
