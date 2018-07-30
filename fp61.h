@@ -50,32 +50,7 @@
 
 
 //------------------------------------------------------------------------------
-// Portable 64x64->128 Multiply
-// CAT_MUL128: r{hi,lo} = x * y
-
-#if defined(_MSC_VER) && defined(_WIN64)
-# include <intrin.h>
-# pragma intrinsic(_umul128)
-# define CAT_MUL128(r_hi, r_lo, x, y) \
-    r_lo = _umul128(x, y, &(r_hi));
-#elif defined(__SIZEOF_INT128__) // GCC, Clang, etc:
-    typedef __uint128_t u128;
-# define CAT_MUL128(r_hi, r_lo, x, y) \
-    {                                 \
-        u128 w = (u128)x * y;         \
-        r_lo = (uint64_t)w;           \
-        r_hi = (uint64_t)(w >> 64);   \
-    }
-#else // Emulate 64-bit multiply:
-# define CAT_MUL128(r_hi, r_lo, x, y)                    \
-    {                                                    \
-        r_lo = (uint64_t)x * y;                          \
-        uint64_t ac = (uint64_t)(x >> 32) * (y >> 32);   \
-        uint64_t ad = (uint64_t)(x >> 32) * (uint32_t)y; \
-        uint64_t bc = (uint64_t)(y >> 32) * (uint32_t)x; \
-        r_hi = ac + ((ad + bc) >> 32);                   \
-    }
-#endif
+// Portability Macros
 
 // Compiler-specific force inline keyword
 #ifdef _MSC_VER
@@ -83,6 +58,77 @@
 #else
 # define FP61_FORCE_INLINE inline __attribute__((always_inline))
 #endif
+
+
+//------------------------------------------------------------------------------
+// Portable 64x64->128 Multiply
+// CAT_MUL128: r{hi,lo} = x * y
+
+// Returns low part of product, and high part is set in r_hi
+FP61_FORCE_INLINE uint64_t Emulate64x64to128(
+    uint64_t& r_hi,
+    const uint64_t x,
+    const uint64_t y)
+{
+    const uint64_t x0 = (uint32_t)x, x1 = x >> 32;
+    const uint64_t y0 = (uint32_t)y, y1 = y >> 32;
+    const uint64_t p11 = x1 * y1, p01 = x0 * y1;
+    const uint64_t p10 = x1 * y0, p00 = x0 * y0;
+    /*
+        This is implementing schoolbook multiplication:
+
+                x1 x0
+        X       y1 y0
+        -------------
+                   00  LOW PART
+        -------------
+                00
+             10 10     MIDDLE PART
+        +    01 01
+        -------------
+        + 11 11        HIGH PART
+        -------------
+    */
+    const uint64_t middle = (p01 + p10) + (p00 >> 32);
+    /*
+        Proof that the MIDDLE PART does not overflow:
+        Max value we can get for p01 and p01 = 2^32-1.
+        (2^32-1)^2 + (2^32-1) = 2^64 - 2^32 - 2^32 + 1 + 2^32 - 1 = 2^64 - 2^32
+        Therefore it cannot overflow.
+    */
+
+    // Add HIGH PART and upper half of MIDDLE PART
+    r_hi = p11 + (middle >> 32);
+
+    // Add LOW PART and lower half of MIDDLE PART
+    return (middle << 32) | (uint32_t)(p00);
+}
+
+#if defined(_MSC_VER) && defined(_WIN64)
+// Visual Studio 64-bit
+
+# include <intrin.h>
+# pragma intrinsic(_umul128)
+# define CAT_MUL128(r_hi, r_lo, x, y) \
+    r_lo = _umul128(x, y, &(r_hi));
+
+#elif defined(__SIZEOF_INT128__)
+// Compiler supporting 128-bit values (GCC/Clang)
+
+# define CAT_MUL128(r_hi, r_lo, x, y)                   \
+    {                                                   \
+        unsigned __int128 w = (unsigned __int128)x * y; \
+        r_lo = (uint64_t)w;                             \
+        r_hi = (uint64_t)(w >> 64);                     \
+    }
+
+#else
+// Emulate 64x64->128-bit multiply with 64x64->64 operations
+
+# define CAT_MUL128(r_hi, r_lo, x, y) \
+    r_lo = Emulate64x64to128(r_hi, x, y);
+
+#endif // End CAT_MUL128
 
 
 
