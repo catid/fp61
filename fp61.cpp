@@ -112,6 +112,7 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
         {
             word = ReadU64_LE(Data);
             Data += 8;
+            Bytes = readBytes - 8;
             readBytes = 8;
         }
         else
@@ -121,8 +122,8 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
             }
 
             word = ReadBytes_LE(Data, readBytes);
+            Bytes = 0;
         }
-        Bytes = readBytes - 8;
 
         // This assumes workspace high bits (beyond `available`) are 0
         r = (workspace | (word << available)) & kPrime;
@@ -132,6 +133,7 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
 
         // Calculate bytes remaining in workspace
         available += (readBytes * 8) - 61;
+#error "This can go negative and it messes everything up..."
 
         // If there is ambiguity in the representation:
         if (r >= kAmbiguity)
@@ -154,6 +156,7 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
 
     Workspace = workspace;
     Available = available;
+    fpOut = r;
     return ReadResult::Success;
 }
 
