@@ -28,22 +28,25 @@
 
 #include "fp61.h"
 
+namespace fp61 {
+
+
 // This is an unrolled implementation of Knuth's unsigned version of the eGCD,
 // specialized for the prime.  It handles any input.
-uint64_t fp61_inv(uint64_t u)
+uint64_t Inverse(uint64_t u)
 {
     uint64_t u1, u3, v1, v3, qt;
 
-    qt = u / kFp61Prime;
-    u3 = u % kFp61Prime;
+    qt = u / kPrime;
+    u3 = u % kPrime;
     u1 = 1;
 
     if (u3 == 0) {
         return 0; // No inverse
     }
 
-    qt = kFp61Prime / u3;
-    v3 = kFp61Prime % u3;
+    qt = kPrime / u3;
+    v3 = kPrime % u3;
     v1 = qt;
 
     for (;;)
@@ -57,7 +60,7 @@ uint64_t fp61_inv(uint64_t u)
         u1 += qt * v1;
 
         if (u3 == 0) {
-            return v3 == 1 ? kFp61Prime - v1 : 0;
+            return v3 == 1 ? kPrime - v1 : 0;
         }
 
         qt = v3 / u3;
@@ -65,3 +68,94 @@ uint64_t fp61_inv(uint64_t u)
         v1 += qt * u1;
     }
 }
+
+
+//------------------------------------------------------------------------------
+// Memory Reading
+
+uint64_t ReadBytes_LE(const uint8_t* data, unsigned bytes)
+{
+    switch (bytes)
+    {
+    case 8: return ReadU64_LE(data);
+    case 7: return ((uint64_t)data[6] << 48) | ((uint64_t)data[5] << 40) | ((uint64_t)data[4] << 32) | ReadU32_LE(data);
+    case 6: return ((uint64_t)data[5] << 40) | ((uint64_t)data[4] << 32) | ReadU32_LE(data);
+    case 5: return ((uint64_t)data[4] << 32) | ReadU32_LE(data);
+    case 4: return ReadU32_LE(data);
+    case 3: return ((uint32_t)data[2] << 16) | ((uint32_t)data[1] << 8) | data[0];
+    case 2: return ((uint32_t)data[1] << 8) | data[0];
+    case 1: return data[0];
+    }
+    return 0;
+}
+
+void ByteReader::BeginRead(const uint8_t* data, unsigned bytes)
+{
+    Data = data;
+    Bytes = bytes;
+    Workspace = 0;
+    Available = 0;
+}
+
+ReadResult ByteReader::ReadNext(uint64_t& fpOut)
+{
+    uint64_t word, r, workspace = Workspace;
+    unsigned available = Available;
+
+    // If workspace currently has 0..60 bits:
+    if (available <= 60)
+    {
+        unsigned readBytes = Bytes;
+
+        // Read a word to fill in the difference
+        if (readBytes >= 8)
+        {
+            word = ReadU64_LE(Data);
+            Data += 8;
+            readBytes = 8;
+        }
+        else
+        {
+            if (readBytes == 0 && available <= 0) {
+                return ReadResult::Empty;
+            }
+
+            word = ReadBytes_LE(Data, readBytes);
+        }
+        Bytes = readBytes - 8;
+
+        // This assumes workspace high bits (beyond `available`) are 0
+        r = (workspace | (word << available)) & kPrime;
+
+        // Remaining workspace bits are taken from read word
+        workspace = word >> (61 - available);
+
+        // Calculate bytes remaining in workspace
+        available += (readBytes * 8) - 61;
+
+        // If there is ambiguity in the representation:
+        if (r >= kAmbiguity)
+        {
+            // Insert bit 0 for fffe and 1 for ffff to resolve the ambiguity
+            workspace = (workspace << 1) | (r & 1);
+            ++available;
+
+            // Use kAmbiguity value for a placeholder
+            r = kAmbiguity;
+        }
+    }
+    else
+    {
+        // Enough bits exist so use the existing ones
+        r = workspace & kPrime;
+        workspace >>= 61;
+        available -= 61;
+    }
+
+    Workspace = workspace;
+    Available = available;
+    return ReadResult::Success;
+}
+
+
+} // namespace fp61

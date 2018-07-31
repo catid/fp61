@@ -31,7 +31,6 @@
 
 #include <stdint.h>
 
-
 /*
     Integer Arithmetic Modulo Mersenne Prime 2^61-1 in C++
 
@@ -41,8 +40,8 @@
     to accelerate finite (base) field arithmetic.  So it runs a lot faster
     when built into a 64-bit executable.
 
-    This math code offers full use of lazy reduction techniques,
-    via fp61_partial_reduce().
+    This math code offers use of lazy reduction techniques for speed,
+    via fp61::PartialReduce().
 
     + Addition of 8 values can be evaluated before reduction.
     + Sums of 4 products can be evaluated with partial reductions.
@@ -131,12 +130,14 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
 #endif // End CAT_MUL128
 
 
+namespace fp61 {
+
 
 //------------------------------------------------------------------------------
 // Constants
 
 // p = 2^61 - 1
-static const uint64_t kFp61Prime = ((uint64_t)1 << 61) - 1;
+static const uint64_t kPrime = ((uint64_t)1 << 61) - 1;
 
 // Mask where bit #63 is clear and all other bits are set.
 static const uint64_t kMask63 = ((uint64_t)1 << 63) - 1;
@@ -146,44 +147,44 @@ static const uint64_t kMask63 = ((uint64_t)1 << 63) - 1;
 // API
 
 /**
-    fp61_partial_reduce()
+    r = fp61::PartialReduce(x)
 
-    Partially reduce a value (mod p).  This clears bits #63 and #62.
+    Partially reduce x (mod p).  This clears bits #63 and #62.
 
-    The result can be passed directly to fp61_add4(), fp61_mul(),
-    and fp61_reduce_finalize().
+    The result can be passed directly to fp61::Add4(), fp61::Multiply(),
+    and fp61::Finalize().
 */
-FP61_FORCE_INLINE uint64_t fp61_partial_reduce(uint64_t x)
+FP61_FORCE_INLINE uint64_t PartialReduce(uint64_t x)
 {
     // Eliminate bits #63 to #61, which may carry back up into bit #61,
     // So we will only definitely reduce #63 and #62.
-    return (x & kFp61Prime) + (x >> 61); // 0 <= result <= 2^62 - 1
+    return (x & kPrime) + (x >> 61); // 0 <= result <= 2^62 - 1
 }
 
 /**
-    fp61_reduce_finalize()
+    r = fp61::Finalize(x)
 
-    Finalize reduction of a value (mod p) that was partially reduced
+    Finalize reduction of x (mod p) from PartialReduce()
     Preconditions: Bits #63 and #62 are clear and x != 0x3ffffffffffffffeULL
 
     This function fails for x = 0x3ffffffffffffffeULL.
     The partial reduction function does not produce this bit pattern for any
     input, so this exception is allowed because I'm assuming the input comes
-    from fp61_partial_reduce().  So, do not mask down to 62 random bits and
+    from fp61::PartialReduce().  So, do not mask down to 62 random bits and
     pass to this function because it can fail in this one case.
 
-    Returns a value less than p.
+    Returns a value in Fp (less than p).
 */
-FP61_FORCE_INLINE uint64_t fp61_reduce_finalize(uint64_t x)
+FP61_FORCE_INLINE uint64_t Finalize(uint64_t x)
 {
     // Eliminate #61.
     // The +1 also handles the case where x = p and x = 0x3fffffffffffffffULL.
     // I don't see a way to tweak this to handle 0x3ffffffffffffffeULL...
-    return (x + ((x+1) >> 61)) & kFp61Prime; // 0 <= result < p
+    return (x + ((x+1) >> 61)) & kPrime; // 0 <= result < p
 }
 
 /**
-    fp61_add4()
+    r = fp61::Add4(x, y, z, w)
 
     Sum x + y + z + w (without full reduction modulo p).
     Preconditions: x,y,z,w <2^62
@@ -191,36 +192,36 @@ FP61_FORCE_INLINE uint64_t fp61_reduce_finalize(uint64_t x)
     Probably you will want to just inline this code and follow the pattern,
     since being restricted to adding 4 things at a time is kind of weird.
 
-    The result can be passed directly to fp61_add4(), fp61_mul(), and
-    fp61_reduce_finalize().
+    The result can be passed directly to fp61::Add4(), fp61::Multiply(), and
+    fp61::Finalize().
 */
-FP61_FORCE_INLINE uint64_t fp61_add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
+FP61_FORCE_INLINE uint64_t Add4(uint64_t x, uint64_t y, uint64_t z, uint64_t w)
 {
-    return fp61_partial_reduce(x + y + z + w);
+    return PartialReduce(x + y + z + w);
 }
 
 /**
-    r = fp61_neg(x)
+    r = fp61::Negate(x)
 
     r = -x (without reduction modulo p)
     Preconditions: x <= p
 
     The input needs to be have bits #63 #62 #61 cleared.
-    This can be ensured by calling fp61_partial_reduce() and
-    fp61_reduce_finalize() first.  Since this is more expensive than addition
+    This can be ensured by calling fp61::PartialReduce() and
+    fp61::Finalize() first.  Since this is more expensive than addition
     it is best to reorganize operations to avoid needing this reduction.
 
     Return a value <= p.
 */
-FP61_FORCE_INLINE uint64_t fp61_neg(uint64_t x)
+FP61_FORCE_INLINE uint64_t Negate(uint64_t x)
 {
-    return kFp61Prime - x;
+    return kPrime - x;
 }
 
-// For subtraction, use fp61_neg() and fp61_add4().
+// For subtraction, use fp61::Negate() and add: x + (-y).
 
 /**
-    r = fp61_mul(x, y)
+    r = fp61::Multiply(x, y)
 
     r = x * y (with partial reduction modulo p)
 
@@ -228,7 +229,7 @@ FP61_FORCE_INLINE uint64_t fp61_neg(uint64_t x)
 
         The number of bits between x and y must be less than 124 bits.
 
-        Call fp61_partial_reduce() to reduce inputs if needed,
+        Call fp61::PartialReduce() to reduce inputs if needed,
         which makes sure that both inputs are 62 bits or fewer.
 
         Example: If x <= 2^62-1 (62 bits), then y <= 2^62-1 (62 bits).
@@ -242,9 +243,9 @@ FP61_FORCE_INLINE uint64_t fp61_neg(uint64_t x)
     Result:
 
         The result is stored in bits #61 to #0 (62 bits of the word).
-        Call fp61_final_reduce() to reduce the result to 61 bits.
+        Call fp61::Finalize() to reduce the result to 61 bits.
 */
-FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
+FP61_FORCE_INLINE uint64_t Multiply(uint64_t x, uint64_t y)
 {
     uint64_t p_lo, p_hi;
     CAT_MUL128(p_hi, p_lo, x, y);
@@ -275,7 +276,7 @@ FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
 
     // Eliminate bits #63 to #61, which may carry back up into bit #61,
     // So we will only definitely reduce #63 and #62.
-    uint64_t r = (p_lo & kFp61Prime) + (p_lo >> 61);
+    uint64_t r = (p_lo & kPrime) + (p_lo >> 61);
 
     // Eliminate bits #123 to #64 (60 bits).
     // This stops short of #124 that would affect bit #63 because it
@@ -285,11 +286,11 @@ FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
     // This last reduction step is not strictly necessary, but is almost always
     // a good idea when used to implement some algorithm, so I include it.
     // Partially reduce the result to clear the high 2 bits.
-    return fp61_partial_reduce(r);
+    return PartialReduce(r);
 }
 
 /**
-    r = fp61_inv(x)
+    r = fp61::Inverse(x)
 
     r = x^-1 (mod p)
     The input value x can be any 64-bit value.
@@ -305,7 +306,89 @@ FP61_FORCE_INLINE uint64_t fp61_mul(uint64_t x, uint64_t y)
 
     If the inverse does not exist, it returns 0.
 */
-uint64_t fp61_inv(uint64_t x);
+uint64_t Inverse(uint64_t x);
+
+
+//------------------------------------------------------------------------------
+// Memory Reading
+
+// Define this to avoid any unaligned memory accesses while reading data.
+// This is useful as a quick-fix for mobile applications.
+// A preferred solution is to ensure that the data provided is aligned.
+// Another reason to do this is if the platform is big-endian.
+//#define FP61_SAFE_READS
+
+/// Read 8 bytes in little-endian byte order
+FP61_FORCE_INLINE uint64_t ReadU64_LE(const uint8_t* data)
+{
+#ifdef FP61_SAFE_READS
+    return ((uint64_t)data[7] << 56) | ((uint64_t)data[6] << 48) | ((uint64_t)data[5] << 40) |
+        ((uint64_t)data[4] << 32) | ((uint64_t)data[3] << 24) | ((uint64_t)data[2] << 16) |
+        ((uint64_t)data[1] << 8) | data[0];
+#else
+    const uint64_t* wordPtr = reinterpret_cast<const uint64_t*>(data);
+    return *wordPtr;
+#endif
+}
+
+/// Read 4 bytes in little-endian byte order
+FP61_FORCE_INLINE uint32_t ReadU32_LE(const uint8_t* data)
+{
+#ifdef FP61_SAFE_READS
+    return ((uint32_t)data[3] << 24) | ((uint32_t)data[2] << 16) | ((uint32_t)data[1] << 8) | data[0];
+#else
+    const uint32_t* wordPtr = reinterpret_cast<const uint32_t*>(data);
+    return *wordPtr;
+#endif
+}
+
+/// Read between 0..8 bytes in little-endian byte order
+/// Returns 0 for any other value for `bytes`
+uint64_t ReadBytes_LE(const uint8_t* data, unsigned bytes);
+
+enum class ReadResult
+{
+    Success, ///< Read returned with a word of data
+    Empty    ///< No data remaining to read
+};
+
+// Words of 2^61-2 or higher are ambiguous because the field prime is 2^61-1
+// so it could represent either 2^61-2 or 2^61-1.  The ByteReader will insert an
+// extra bit = 0 for p-1, = 1 for p after the ambiguous value is seen.
+static const uint64_t kAmbiguity = kPrime - 1;
+
+/**
+    ByteReader
+
+    Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
+    Pads the final < 8 bytes with zeros.
+
+    Define FP61_SAFE_READS if the platform does not support unaligned reads
+    and the input data is unaligned, or the platform is big-endian.
+
+    Call BeginRead() to begin reading.
+
+    Call ReadNext() repeatedly to read all words from the data.
+    It will return ReadResult::Empty when all bits are empty.
+*/
+struct ByteReader
+{
+    const uint8_t* Data;
+    unsigned Bytes;
+    uint64_t Workspace;
+    unsigned Available;
+
+
+    /// Begin reading data
+    void BeginRead(const uint8_t* data, unsigned bytes);
+
+    /// Returns ReadResult::Empty when no more data is available.
+    /// Otherwise fpOut will be a value between 0 and p-1.
+    ReadResult ReadNext(uint64_t& fpOut);
+};
+
+
+} // namespace fp61
 
 
 #endif // CAT_FP61_H

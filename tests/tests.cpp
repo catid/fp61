@@ -92,8 +92,8 @@ public:
 
 static bool test_negate(uint64_t x)
 {
-    uint64_t n = fp61_neg(x);
-    uint64_t s = (x + n) % kFp61Prime;
+    uint64_t n = fp61::Negate(x);
+    uint64_t s = (x + n) % fp61::kPrime;
     if (s != 0) {
         cout << "TestNegate failed for x = " << hex << HexString(x) << endl;
         FP61_DEBUG_BREAK();
@@ -110,7 +110,7 @@ static bool TestNegate()
             return false;
         }
     }
-    for (uint64_t x = kFp61Prime; x >= kFp61Prime - 1000; --x) {
+    for (uint64_t x = fp61::kPrime; x >= fp61::kPrime - 1000; --x) {
         if (!test_negate(x)) {
             return false;
         }
@@ -121,7 +121,7 @@ static bool TestNegate()
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & kFp61Prime;
+        uint64_t x = prng.Next64() & fp61::kPrime;
         if (!test_negate(x)) {
             return false;
         }
@@ -137,19 +137,19 @@ static bool TestAdd()
 {
     // Preconditions: x,y,z,w <2^62
     const uint64_t largest = ((uint64_t)1 << 62) - 1;
-    const uint64_t reduced = largest % kFp61Prime;
+    const uint64_t reduced = largest % fp61::kPrime;
 
     for (uint64_t x = largest; x >= largest - 1000; --x)
     {
-        uint64_t r = fp61_add4(largest, largest, largest, x);
+        uint64_t r = fp61::Add4(largest, largest, largest, x);
 
         uint64_t expected = 0;
-        expected = (expected + reduced) % kFp61Prime;
-        expected = (expected + reduced) % kFp61Prime;
-        expected = (expected + reduced) % kFp61Prime;
-        expected = (expected + (x % kFp61Prime)) % kFp61Prime;
+        expected = (expected + reduced) % fp61::kPrime;
+        expected = (expected + reduced) % fp61::kPrime;
+        expected = (expected + reduced) % fp61::kPrime;
+        expected = (expected + (x % fp61::kPrime)) % fp61::kPrime;
 
-        if (r % kFp61Prime != expected) {
+        if (r % fp61::kPrime != expected) {
             cout << "TestAdd failed for x = " << HexString(x) << endl;
             FP61_DEBUG_BREAK();
             return false;
@@ -160,15 +160,15 @@ static bool TestAdd()
     {
         for (uint64_t y = largest; y >= largest - 1000; --y)
         {
-            uint64_t r = fp61_add4(largest, largest, x, y);
+            uint64_t r = fp61::Add4(largest, largest, x, y);
 
             uint64_t expected = 0;
-            expected = (expected + reduced) % kFp61Prime;
-            expected = (expected + reduced) % kFp61Prime;
-            expected = (expected + (y % kFp61Prime)) % kFp61Prime;
-            expected = (expected + (x % kFp61Prime)) % kFp61Prime;
+            expected = (expected + reduced) % fp61::kPrime;
+            expected = (expected + reduced) % fp61::kPrime;
+            expected = (expected + (y % fp61::kPrime)) % fp61::kPrime;
+            expected = (expected + (x % fp61::kPrime)) % fp61::kPrime;
 
-            if (r % kFp61Prime != expected) {
+            if (r % fp61::kPrime != expected) {
                 cout << "TestAdd failed for x=" << HexString(x) << " y=" << HexString(y) << endl;
                 FP61_DEBUG_BREAK();
                 return false;
@@ -187,15 +187,15 @@ static bool TestAdd()
         uint64_t w = prng.Next64() & MASK62;
         uint64_t z = prng.Next64() & MASK62;
 
-        uint64_t r = fp61_add4(x, y, z, w);
+        uint64_t r = fp61::Add4(x, y, z, w);
 
         uint64_t expected = 0;
-        expected = (expected + (x % kFp61Prime)) % kFp61Prime;
-        expected = (expected + (y % kFp61Prime)) % kFp61Prime;
-        expected = (expected + (z % kFp61Prime)) % kFp61Prime;
-        expected = (expected + (w % kFp61Prime)) % kFp61Prime;
+        expected = (expected + (x % fp61::kPrime)) % fp61::kPrime;
+        expected = (expected + (y % fp61::kPrime)) % fp61::kPrime;
+        expected = (expected + (z % fp61::kPrime)) % fp61::kPrime;
+        expected = (expected + (w % fp61::kPrime)) % fp61::kPrime;
 
-        if (r % kFp61Prime != expected) {
+        if (r % fp61::kPrime != expected) {
             cout << "TestAdd failed (random) for i = " << i << endl;
             FP61_DEBUG_BREAK();
             return false;
@@ -211,9 +211,9 @@ static bool TestAdd()
 
 static bool test_pred(uint64_t x)
 {
-    uint64_t expected = x % kFp61Prime;
+    uint64_t expected = x % fp61::kPrime;
 
-    uint64_t r = fp61_partial_reduce(x);
+    uint64_t r = fp61::PartialReduce(x);
 
     if ((r >> 62) != 0)
     {
@@ -222,7 +222,7 @@ static bool test_pred(uint64_t x)
         return false;
     }
 
-    uint64_t actual = fp61_partial_reduce(x) % kFp61Prime;
+    uint64_t actual = fp61::PartialReduce(x) % fp61::kPrime;
 
     if (actual != expected)
     {
@@ -272,7 +272,7 @@ static bool TestPartialReduction()
     }
 
     // Around the prime
-    for (uint64_t x = kFp61Prime + 1000; x > kFp61Prime - 1000; --x) {
+    for (uint64_t x = fp61::kPrime + 1000; x > fp61::kPrime - 1000; --x) {
         if (!test_pred(x)) {
             return false;
         }
@@ -304,8 +304,8 @@ static bool test_fred(uint64_t x)
         return true;
     }
 
-    uint64_t actual = fp61_reduce_finalize(x);
-    uint64_t expected = x % kFp61Prime;
+    uint64_t actual = fp61::Finalize(x);
+    uint64_t expected = x % fp61::kPrime;
 
     if (actual != expected)
     {
@@ -346,7 +346,7 @@ static bool TestFinalizeReduction()
     }
 
     // Around the prime
-    for (uint64_t x = kFp61Prime + 1000; x > kFp61Prime - 1000; --x) {
+    for (uint64_t x = fp61::kPrime + 1000; x > fp61::kPrime - 1000; --x) {
         if (!test_fred(x)) {
             return false;
         }
@@ -373,7 +373,7 @@ static bool TestFinalizeReduction()
 
 static bool test_mul(uint64_t x, uint64_t y)
 {
-    uint64_t p = fp61_mul(x, y);
+    uint64_t p = fp61::Multiply(x, y);
 
     if ((p >> 62) != 0) {
         cout << "TestMultiply failed (high bit overflow) for x=" << HexString(x) << ", y=" << HexString(y) << endl;
@@ -386,13 +386,13 @@ static bool test_mul(uint64_t x, uint64_t y)
 
     //A % B == (((AH % B) * (2^64 % B)) + (AL % B)) % B
     //  == (((AH % B) * ((2^64 - B) % B)) + (AL % B)) % B
-    r1 %= kFp61Prime;
-    uint64_t NB = (uint64_t)(-(int64_t)kFp61Prime);
-    uint64_t mod = r1 * (NB % kFp61Prime);
-    mod += r0 % kFp61Prime;
-    mod %= kFp61Prime;
+    r1 %= fp61::kPrime;
+    uint64_t NB = (uint64_t)(-(int64_t)fp61::kPrime);
+    uint64_t mod = r1 * (NB % fp61::kPrime);
+    mod += r0 % fp61::kPrime;
+    mod %= fp61::kPrime;
 
-    if (p % kFp61Prime != mod) {
+    if (p % fp61::kPrime != mod) {
         cout << "TestMultiply failed (reduced result mismatch) for x=" << HexString(x) << ", y=" << HexString(y) << endl;
         FP61_DEBUG_BREAK();
         return false;
@@ -448,12 +448,12 @@ static bool TestMultiply()
 
 static bool test_inv(uint64_t x)
 {
-    uint64_t i = fp61_inv(x);
+    uint64_t i = fp61::Inverse(x);
 
     // If no inverse existed:
     if (i == 0) {
         // Then it must have evenly divided
-        if (x % kFp61Prime == 0) {
+        if (x % fp61::kPrime == 0) {
             return true;
         }
         // Otherwise this should have had a result
@@ -463,26 +463,26 @@ static bool test_inv(uint64_t x)
     }
 
     // Result must be in Fp
-    if (i >= kFp61Prime) {
+    if (i >= fp61::kPrime) {
         cout << "TestMulInverse failed (result too large) for x=" << HexString(x) << endl;
         FP61_DEBUG_BREAK();
         return false;
     }
 
     // mul requires partially reduced input
-    x = fp61_partial_reduce(x);
+    x = fp61::PartialReduce(x);
 
-    uint64_t p = fp61_mul(x, i);
+    uint64_t p = fp61::Multiply(x, i);
 
     // If result is not 1 then it is not a multiplicative inverse
-    if (fp61_reduce_finalize(p) != 1) {
+    if (fp61::Finalize(p) != 1) {
         cout << "TestMulInverse failed (finalized result not 1) for x=" << HexString(x) << endl;
         FP61_DEBUG_BREAK();
         return false;
     }
 
     // Double check the reduce function...
-    if (p % kFp61Prime != 1) {
+    if (p % fp61::kPrime != 1) {
         cout << "TestMulInverse failed (remainder not 1) for x=" << HexString(x) << endl;
         return false;
     }
