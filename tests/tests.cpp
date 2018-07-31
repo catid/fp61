@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 using namespace std;
 
 
@@ -577,7 +578,90 @@ static bool TestMulInverse()
 
 
 //------------------------------------------------------------------------------
-// Tests: Reader
+// Tests: ByteReader
+
+bool test_byte_reader(const uint8_t* data, unsigned bytes)
+{
+    fp61::ByteReader reader;
+
+    reader.BeginRead(data, bytes);
+
+    // Round up to the next 61 bits
+    unsigned expectedReads = (bytes * 8 + 60) / 61;
+    unsigned actualReads = 0;
+    unsigned bits = 0;
+    bool packed = false;
+    unsigned packedBit = 0;
+
+    uint64_t fp;
+    while (fp61::ReadResult::Success == reader.ReadNext(fp))
+    {
+        unsigned readStart = bits / 8;
+        if (readStart >= bytes)
+        {
+            FP61_DEBUG_BREAK();
+            cout << "TestByteReader failed (too many reads) for bytes=" << bytes << " actualReads=" << actualReads << endl;
+            return false;
+        }
+
+        int readBytes = (int)bytes - (int)readStart;
+        if (readBytes < 0) {
+            readBytes = 0;
+        }
+        else if (readBytes > 8) {
+            readBytes = 8;
+        }
+
+        uint64_t x = fp61::ReadBytes_LE(data + readStart, readBytes) >> (bits % 8);
+
+        int readBits = (readBytes * 8) - (bits % 8);
+        if (readBytes >= 8 && readBits > 0 && readBits < 61 && readStart + readBytes < bytes)
+        {
+            // Need to read one more byte sometimes
+            uint64_t high = data[readStart + readBytes];
+            high <<= readBits;
+            x |= high;
+        }
+
+        // Test packing
+        if (packed)
+        {
+            x <<= 1;
+            x |= packedBit;
+            bits += 60;
+        }
+        else
+        {
+            bits += 61;
+        }
+
+        x &= fp61::kPrime;
+
+        packed = (x >= fp61::kAmbiguity);
+        if (packed)
+        {
+            packedBit = (x == fp61::kPrime);
+            x = fp61::kAmbiguity;
+        }
+
+        if (fp != x)
+        {
+            FP61_DEBUG_BREAK();
+            cout << "TestByteReader failed (wrong value) for bytes=" << bytes << " actualReads=" << actualReads << endl;
+            return false;
+        }
+        ++actualReads;
+    }
+
+    if (actualReads != expectedReads)
+    {
+        FP61_DEBUG_BREAK();
+        cout << "TestByteReader failed (read count wrong) for bytes=" << bytes << endl;
+        return false;
+    }
+
+    return true;
+}
 
 bool TestByteReader()
 {
@@ -619,64 +703,83 @@ bool TestByteReader()
         }
     }
 
-    fp61::ByteReader reader;
-    bool success = true;
-    unsigned i;
+    uint8_t simpledata[16 + 8] = {
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15,
+        0
+    };
 
-    for (i = 0; i < 10; ++i)
+    for (unsigned i = 0; i <= 16; ++i)
     {
-        reader.BeginRead(data, i);
-
-        // Round up to the next 61 bits
-        unsigned expectedReads = (i * 8 + 60) / 61;
-        unsigned actualReads = 0;
-        unsigned bits = 0;
-
-        uint64_t fp;
-        while (fp61::ReadResult::Success == reader.ReadNext(fp))
-        {
-            unsigned readStart = bits / 8;
-            if (readStart >= i)
-            {
-                FP61_DEBUG_BREAK();
-                success = false;
-                break;
-            }
-
-            int readBytes = (int)i - (int)readStart;
-            if (readBytes < 0) {
-                readBytes = 0;
-            }
-            else if (readBytes > 8) {
-                readBytes = 8;
-            }
-
-            uint64_t x = fp61::ReadBytes_LE(data + readStart, readBytes) >> (bits % 8);
-            x &= fp61::kPrime;
-
-            if (fp != x)
-            {
-                FP61_DEBUG_BREAK();
-                success = false;
-                break;
-            }
-            ++actualReads;
-            bits += 61;
-        }
-
-        if (actualReads != expectedReads)
-        {
-            FP61_DEBUG_BREAK();
-            success = false;
-            break;
+        if (!test_byte_reader(simpledata, i)) {
+            return false;
         }
     }
 
-    if (!success) {
-        cout << "TestByteReader failed (ReadNext) for i = " << i << endl;
+    uint8_t allones[16 + 8] = {
+        255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,
+        0
+    };
+
+    for (unsigned i = 0; i <= 16; ++i)
+    {
+        if (!test_byte_reader(allones, i)) {
+            return false;
+        }
     }
 
-    return success;
+    uint8_t mixed[20 + 8] = {
+        255,255,255,255,255,255,255,255,0, // Inject a non-overflowing bit in the middle
+        255,255,255,255,255,255,255,
+        255,255,255,255,
+        0
+    };
+
+    for (unsigned i = 0; i <= 16; ++i)
+    {
+        if (!test_byte_reader(allones, i)) {
+            return false;
+        }
+    }
+
+    // TODO: Also test fffe
+
+    static const unsigned kTestRange = 1000000;
+    vector<uint8_t> randBytes(kTestRange + 8, 0); // +8 to avoid bounds checking
+
+    PCGRandom prng;
+    prng.Seed(10);
+
+    for (unsigned i = 0; i < kTestRange; ++i)
+    {
+        for (unsigned j = 0; j < 1; ++j)
+        {
+            // Fill the data with random bytes
+            for (unsigned k = 0; k < i; k += 8)
+            {
+                uint64_t w;
+#if 0
+                if (prng.Next() % 100 <= 3)
+                {
+                    w = ~(uint64_t)0;
+                }
+                else
+#endif
+                {
+                    w = prng.Next64();
+                }
+
+                fp61::WriteU64_LE(&randBytes[k], w);
+            }
+
+            if (!test_byte_reader(&randBytes[0], i)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 

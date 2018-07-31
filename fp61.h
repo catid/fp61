@@ -47,6 +47,12 @@
     + Sums of 4 products can be evaluated with partial reductions.
 */
 
+// Define this to avoid any unaligned memory accesses while reading data.
+// This is useful as a quick-fix for mobile applications.
+// A preferred solution is to ensure that the data provided is aligned.
+// Another reason to do this is if the platform is big-endian.
+//#define FP61_SAFE_MEMORY_ACCESSES
+
 
 //------------------------------------------------------------------------------
 // Portability Macros
@@ -320,16 +326,10 @@ uint64_t Inverse(uint64_t x);
 //------------------------------------------------------------------------------
 // Memory Reading
 
-// Define this to avoid any unaligned memory accesses while reading data.
-// This is useful as a quick-fix for mobile applications.
-// A preferred solution is to ensure that the data provided is aligned.
-// Another reason to do this is if the platform is big-endian.
-//#define FP61_SAFE_READS
-
 /// Read 8 bytes in little-endian byte order
 FP61_FORCE_INLINE uint64_t ReadU64_LE(const uint8_t* data)
 {
-#ifdef FP61_SAFE_READS
+#ifdef FP61_SAFE_MEMORY_ACCESSES
     return ((uint64_t)data[7] << 56) | ((uint64_t)data[6] << 48) | ((uint64_t)data[5] << 40) |
         ((uint64_t)data[4] << 32) | ((uint64_t)data[3] << 24) | ((uint64_t)data[2] << 16) |
         ((uint64_t)data[1] << 8) | data[0];
@@ -342,7 +342,7 @@ FP61_FORCE_INLINE uint64_t ReadU64_LE(const uint8_t* data)
 /// Read 4 bytes in little-endian byte order
 FP61_FORCE_INLINE uint32_t ReadU32_LE(const uint8_t* data)
 {
-#ifdef FP61_SAFE_READS
+#ifdef FP61_SAFE_MEMORY_ACCESSES
     return ((uint32_t)data[3] << 24) | ((uint32_t)data[2] << 16) | ((uint32_t)data[1] << 8) | data[0];
 #else
     const uint32_t* wordPtr = reinterpret_cast<const uint32_t*>(data);
@@ -371,8 +371,8 @@ static const uint64_t kAmbiguity = kPrime - 1;
     Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
     Pads the final < 8 bytes with zeros.
 
-    Define FP61_SAFE_READS if the platform does not support unaligned reads
-    and the input data is unaligned, or the platform is big-endian.
+    Define FP61_SAFE_MEMORY_ACCESSES if the platform does not support unaligned
+    reads and the input data is unaligned, or the platform is big-endian.
 
     Call BeginRead() to begin reading.
 
@@ -384,7 +384,7 @@ struct ByteReader
     const uint8_t* Data;
     unsigned Bytes;
     uint64_t Workspace;
-    unsigned Available;
+    int Available;
 
 
     /// Begin reading data
@@ -394,6 +394,42 @@ struct ByteReader
     /// Otherwise fpOut will be a value between 0 and p-1.
     ReadResult ReadNext(uint64_t& fpOut);
 };
+
+
+//------------------------------------------------------------------------------
+// Memory Writing
+
+/// Write 4 bytes in little-endian byte order
+FP61_FORCE_INLINE void WriteU32_LE(uint8_t* data, uint32_t value)
+{
+#ifdef FP61_SAFE_MEMORY_ACCESSES
+    data[3] = (uint8_t)(value >> 24);
+    data[2] = (uint8_t)(value >> 16);
+    data[1] = (uint8_t)(value >> 8);
+    data[0] = (uint8_t)value;
+#else
+    uint32_t* wordPtr = reinterpret_cast<uint32_t*>(data);
+    *wordPtr = value;
+#endif
+}
+
+/// Write 8 bytes in little-endian byte order
+FP61_FORCE_INLINE void WriteU64_LE(uint8_t* data, uint64_t value)
+{
+#ifdef FP61_SAFE_MEMORY_ACCESSES
+    data[7] = (uint8_t)(value >> 56);
+    data[6] = (uint8_t)(value >> 48);
+    data[5] = (uint8_t)(value >> 40);
+    data[4] = (uint8_t)(value >> 32);
+    data[3] = (uint8_t)(value >> 24);
+    data[2] = (uint8_t)(value >> 16);
+    data[1] = (uint8_t)(value >> 8);
+    data[0] = (uint8_t)value;
+#else
+    uint64_t* wordPtr = reinterpret_cast<uint64_t*>(data);
+    *wordPtr = value;
+#endif
+}
 
 
 } // namespace fp61

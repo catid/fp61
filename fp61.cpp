@@ -100,62 +100,62 @@ void ByteReader::BeginRead(const uint8_t* data, unsigned bytes)
 ReadResult ByteReader::ReadNext(uint64_t& fpOut)
 {
     uint64_t word, r, workspace = Workspace;
-    unsigned available = Available;
+    int nextAvailable, available = Available;
 
-    // If workspace currently has 0..60 bits:
-    if (available <= 60)
+    // If enough bits are already available:
+    if (available >= 61)
     {
-        unsigned readBytes = Bytes;
+        fpOut = workspace & kPrime;
+        Workspace = workspace >> 61;
+        Available = available - 61;
+        return ReadResult::Success;
+    }
 
-        // Read a word to fill in the difference
-        if (readBytes >= 8)
-        {
-            word = ReadU64_LE(Data);
-            Data += 8;
-            Bytes = readBytes - 8;
-            readBytes = 8;
-        }
-        else
-        {
-            if (readBytes == 0 && available <= 0) {
-                return ReadResult::Empty;
-            }
+    unsigned bytes = Bytes;
 
-            word = ReadBytes_LE(Data, readBytes);
-            Bytes = 0;
-        }
-
-        // This assumes workspace high bits (beyond `available`) are 0
-        r = (workspace | (word << available)) & kPrime;
-
-        // Remaining workspace bits are taken from read word
-        workspace = word >> (61 - available);
-
-        // Calculate bytes remaining in workspace
-        available += (readBytes * 8) - 61;
-#error "This can go negative and it messes everything up..."
-
-        // If there is ambiguity in the representation:
-        if (r >= kAmbiguity)
-        {
-            // Insert bit 0 for fffe and 1 for ffff to resolve the ambiguity
-            workspace = (workspace << 1) | (r & 1);
-            ++available;
-
-            // Use kAmbiguity value for a placeholder
-            r = kAmbiguity;
-        }
+    // Read a word to fill in the difference
+    if (bytes >= 8)
+    {
+        word = ReadU64_LE(Data);
+        Data += 8;
+        Bytes = bytes - 8;
+        nextAvailable = available + 3;
     }
     else
     {
-        // Enough bits exist so use the existing ones
-        r = workspace & kPrime;
-        workspace >>= 61;
-        available -= 61;
+        if (bytes == 0 && available <= 0) {
+            return ReadResult::Empty;
+        }
+
+        word = ReadBytes_LE(Data, bytes);
+        Bytes = 0;
+
+        // Note this may go negative but we check for that above
+        nextAvailable = available + bytes * 8 - 61;
+    }
+
+    // This assumes workspace high bits (beyond `available`) are 0
+    r = (workspace | (word << available)) & kPrime;
+
+    // Remaining workspace bits are taken from read word
+    workspace = word >> (61 - available);
+
+    // If there is ambiguity in the representation:
+    if (r >= kAmbiguity)
+    {
+        // This will not overflow because available <= 60.
+        // We add up to 3 more bits, so adding one more keeps us within 64 bits.
+        ++nextAvailable;
+
+        // Insert bit 0 for fffe and 1 for ffff to resolve the ambiguity
+        workspace = (workspace << 1) | (r & 1);
+
+        // Use kAmbiguity value for a placeholder
+        r = kAmbiguity;
     }
 
     Workspace = workspace;
-    Available = available;
+    Available = nextAvailable;
     fpOut = r;
     return ReadResult::Success;
 }
