@@ -89,12 +89,12 @@ static bool TestNegate()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(1);
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & fp61::kPrime;
+        uint64_t x = prng.Next() & fp61::kPrime;
         if (!test_negate(x)) {
             return false;
         }
@@ -149,16 +149,16 @@ static bool TestAdd()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(0);
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        // Select 4 values from 0..p
-        uint64_t x = prng.Next64() & MASK62;
-        uint64_t y = prng.Next64() & MASK62;
-        uint64_t w = prng.Next64() & MASK62;
-        uint64_t z = prng.Next64() & MASK62;
+        // Select 4 values from 0..2^62-1
+        uint64_t x = prng.Next() & MASK62;
+        uint64_t y = prng.Next() & MASK62;
+        uint64_t w = prng.Next() & MASK62;
+        uint64_t z = prng.Next() & MASK62;
 
         uint64_t r = fp61::Add4(x, y, z, w);
 
@@ -266,12 +266,12 @@ static bool TestPartialReduction()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(2);
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64();
+        uint64_t x = prng.Next();
 
         if (!test_pred(x)) {
             return false;
@@ -329,12 +329,12 @@ static bool TestFinalizeReduction()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(3);
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & MASK62;
+        uint64_t x = prng.Next() & MASK62;
 
         if (!test_fred(x)) {
             return false;
@@ -411,14 +411,14 @@ static bool TestMultiply()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(4);
 
     // 62 + 62 = 124 bits
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & MASK62;
-        uint64_t y = prng.Next64() & MASK62;
+        uint64_t x = prng.Next() & MASK62;
+        uint64_t y = prng.Next() & MASK62;
 
         if (!test_mul(x, y)) {
             return false;
@@ -428,8 +428,8 @@ static bool TestMultiply()
     // 61 + 63 = 124 bits
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & MASK61;
-        uint64_t y = prng.Next64() & MASK63;
+        uint64_t x = prng.Next() & MASK61;
+        uint64_t y = prng.Next() & MASK63;
 
         if (!test_mul(x, y)) {
             return false;
@@ -439,9 +439,9 @@ static bool TestMultiply()
     // Commutivity test
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64() & MASK62;
-        uint64_t y = prng.Next64() & MASK62;
-        uint64_t z = prng.Next64() & MASK62;
+        uint64_t x = prng.Next() & MASK62;
+        uint64_t y = prng.Next() & MASK62;
+        uint64_t z = prng.Next() & MASK62;
 
         uint64_t r = fp61::Finalize(fp61::Multiply(fp61::Multiply(z, y), x));
         uint64_t s = fp61::Finalize(fp61::Multiply(fp61::Multiply(x, z), y));
@@ -526,12 +526,12 @@ static bool TestMulInverse()
         }
     }
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(5);
 
     for (unsigned i = 0; i < kRandomTestLoops; ++i)
     {
-        uint64_t x = prng.Next64();
+        uint64_t x = prng.Next();
 
         if (!test_inv(x)) {
             return false;
@@ -725,7 +725,7 @@ bool TestByteReader()
     static const unsigned kTestRange = 32000;
     vector<uint8_t> randBytes(kTestRange + 8, 0); // +8 to avoid bounds checking
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(10);
 
     for (unsigned i = 0; i < kTestRange; ++i)
@@ -740,7 +740,7 @@ bool TestByteReader()
                     w = ~(uint64_t)0;
                 }
                 else {
-                    w = prng.Next64();
+                    w = prng.Next();
                 }
                 fp61::WriteU64_LE(&randBytes[k], w);
             }
@@ -756,17 +756,76 @@ bool TestByteReader()
 
 
 //------------------------------------------------------------------------------
+// Tests: Random
+
+static bool TestRandom()
+{
+    for (int i = -1000; i < 1000; ++i)
+    {
+        uint64_t loWord = static_cast<int64_t>(i);
+        loWord <<= 3; // Put it in the high bits
+        uint64_t loResult = fp61::Random::RandToFp(loWord);
+
+        if (loResult >= fp61::kPrime)
+        {
+            cout << "TestRandom failed (RandToFp low) at i = " << i << endl;
+            FP61_DEBUG_BREAK();
+            return false;
+        }
+
+        uint64_t hiWord = fp61::kPrime + static_cast<int64_t>(i);
+        hiWord <<= 3; // Put it in the high bits
+        uint64_t hiResult = fp61::Random::RandToFp(hiWord);
+
+        if (hiResult >= fp61::kPrime)
+        {
+            cout << "TestRandom failed (RandToFp high) at i = " << i << endl;
+            FP61_DEBUG_BREAK();
+            return false;
+        }
+    }
+
+    for (int i = -1000; i < 1000; ++i)
+    {
+        uint64_t loWord = static_cast<int64_t>(i);
+        loWord <<= 3; // Put it in the high bits
+        uint64_t loResult = fp61::Random::RandToNonzeroFp(loWord);
+
+        if (loResult <= 0 || loResult >= fp61::kPrime)
+        {
+            cout << "TestRandom failed (RandToNonzeroFp low) at i = " << i << endl;
+            FP61_DEBUG_BREAK();
+            return false;
+        }
+
+        uint64_t hiWord = fp61::kPrime + static_cast<int64_t>(i);
+        hiWord <<= 3; // Put it in the high bits
+        uint64_t hiResult = fp61::Random::RandToNonzeroFp(hiWord);
+
+        if (hiResult <= 0 || hiResult >= fp61::kPrime)
+        {
+            cout << "TestRandom failed (RandToNonzeroFp high) at i = " << i << endl;
+            FP61_DEBUG_BREAK();
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+//------------------------------------------------------------------------------
 // Tests: WordReader/WordWriter
 
-static void TestWordSerialization()
+static bool TestWordSerialization()
 {
     fp61::WordWriter writer;
     fp61::WordReader reader;
 
-    PCGRandom prng;
+    fp61::Random prng;
     prng.Seed(11);
 
-    for (unsigned i = 1; i < 1000; ++i)
+    for (unsigned i = 1; i < 100000; ++i)
     {
         unsigned words = i;
         unsigned bytesNeeded = fp61::WordWriter::BytesNeeded(words);
@@ -777,10 +836,19 @@ static void TestWordSerialization()
 
         for (unsigned j = 0; j < words; ++j)
         {
-            uint64_t w = fp61::Finalize(prng.Next64() & fp61::kPrime);
-            writer.Write()
+            uint64_t w = prng.NextFp();
+            writer.Write(w);
+            uint64_t u = reader.Read();
+            if (u != w)
+            {
+                cout << "TestWordSerialization failed (readback failed) at i = " << i << " j = " << j << endl;
+                FP61_DEBUG_BREAK();
+                return false;
+            }
         }
     }
+
+    return true;
 }
 
 
@@ -794,6 +862,9 @@ int main()
 
     int result = FP61_RET_SUCCESS;
 
+    if (!TestRandom()) {
+        result = FP61_RET_FAIL;
+    }
     if (!TestNegate()) {
         result = FP61_RET_FAIL;
     }

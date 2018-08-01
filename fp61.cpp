@@ -233,6 +233,8 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value)
 // Written in 2015 by Sebastiano Vigna (vigna@acm.org)
 static uint64_t HashU64(uint64_t x)
 {
+    // Note there is an obvious weak key here that breaks the generator
+    // TBD: Add something else after the muliply to fix this?
     x += 0x9e3779b97f4a7c15;
     uint64_t z = x;
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
@@ -240,14 +242,18 @@ static uint64_t HashU64(uint64_t x)
     return z ^ (z >> 31);
 }
 
-void Random::Seed(uint64_t x, uint64_t y)
+void Random::Seed(uint64_t x)
 {
-    State[0] = HashU64(x);
-    State[1] = HashU64(y);
-    State[2] = x;
-    State[3] = y;
+    // Fill initial state as recommended by authors
+    uint64_t h = HashU64(x);
+    State[0] = h;
+    h = HashU64(h);
+    State[1] = h;
+    h = HashU64(h);
+    State[2] = h;
+    h = HashU64(h);
+    State[3] = h;
 }
-
 
 
 } // namespace fp61

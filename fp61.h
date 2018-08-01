@@ -578,7 +578,7 @@ struct Random
 
 
     /// Seed the generator
-    void Seed(uint64_t x, uint64_t y = 0);
+    void Seed(uint64_t x);
 
     /// Get the next 64-bit random number.
     /// The low 3 bits are slightly weak according to the authors.
@@ -603,11 +603,10 @@ struct Random
         return result;
     }
 
-    /// Get the next random value between 0..p
-    uint64_t NextFp()
+    static FP61_FORCE_INLINE uint64_t RandToFp(uint64_t word)
     {
         // Pick high bits as recommended by Xoroshiro authors
-        uint64_t word = Next() >> 3;
+        word >>= 3;
 
         // If word + 1 overflows, then subtract 1.
         // This converts fffff to ffffe and slightly biases the PRNG.
@@ -616,12 +615,27 @@ struct Random
         return word;
     }
 
-    /// Get the next random value between 1..p
-    uint64_t NextNonzeroFp()
+    static FP61_FORCE_INLINE uint64_t RandToNonzeroFp(uint64_t word)
     {
-        // FIXME
+        word = RandToFp(word);
+
+        // If word - 1 borrows out, then add 1.
+        // This converts 0 to 1 and slightly biases the PRNG.
+        word += (word - 1) >> 63;
 
         return word;
+    }
+
+    /// Get the next random value between 0..p
+    FP61_FORCE_INLINE uint64_t NextFp()
+    {
+        return RandToFp(Next());
+    }
+
+    /// Get the next random value between 1..p
+    FP61_FORCE_INLINE uint64_t NextNonzeroFp()
+    {
+        return RandToNonzeroFp(Next());
     }
 };
 
