@@ -170,6 +170,19 @@ Reading Fp Words (e.g. from a file or packet):
     Call BeginRead() to start reading.
     Call Read() to retrieve each consecutive word.
 
+Generating random Fp words (e.g. to fill a random matrix):
+
+    Random
+
+    Xoroshiro256+ based pseudo-random number generator (PRNG) that can generate
+    random numbers between 1..p.  NextNonzeroFp() is mainly intended to be used
+    for producing convolutional code coefficients to multiply by the data.
+
+    Call Seed() to provide a 64-bit generator seed.
+    Call NextNonzeroFp() to produce a random 61-bit number from 1..p
+    Call NextFp() to produce a random 61-bit number from 0..p
+    Call Next() to produce a random 64-bit number.
+
 
 #### Comparing Fp61 to 8-bit and 16-bit Galois fields:
 
