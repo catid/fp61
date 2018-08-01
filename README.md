@@ -1,19 +1,19 @@
 # Fp61
 ## Finite field arithmetic modulo 2^61-1 in C++
 
+Integer Arithmetic Modulo Mersenne Prime 2^61-1 in C++
+
 This software implements arithmetic modulo the Mersenne prime p = 2^61-1.
 
 It takes advantage of the commonly available fast 64x64->128 multiplier
 to accelerate finite (base) field arithmetic.  So it runs a lot faster
 when built into a 64-bit executable.
 
-This math code offers full use of lazy reduction techniques,
-via fp61_partial_reduce().
+This math code offers use of lazy reduction techniques for speed,
+via fp61::PartialReduce().
+
 + Addition of 8 values can be evaluated before reduction.
 + Sums of 4 products can be evaluated with partial reductions.
-
-It is for the most part constant-time, though not intended for cryptography.
-I wrote the library to benchmark this field for software erasure codes.
 
 ## API
 
@@ -73,8 +73,7 @@ Negation:
 
     Return a value <= p.
 
-For subtraction, use fp61_neg() and fp61_add4().
-As in: x + (-y)
+For subtraction, use fp61::Negate() and add: x + (-y).
 
 Multiplication:
 
