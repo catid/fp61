@@ -587,6 +587,18 @@ struct WordWriter
 
 #define CAT_ROL64(x, bits) ( ((uint64_t)(x) << (bits)) | ((uint64_t)(x) >> (64 - (bits))) )
 
+/**
+    Random
+
+    Xoroshiro256+ based pseudo-random number generator (PRNG) that can generate
+    random numbers between 1..p.  NextNonzeroFp() is mainly intended to be used
+    for producing convolutional code coefficients to multiply by the data.
+
+    Call Seed() to provide a 64-bit generator seed.
+    Call NextNonzeroFp() to produce a random 61-bit number from 1..p
+    Call NextFp() to produce a random 61-bit number from 0..p
+    Call Next() to produce a random 64-bit number.
+*/
 struct Random
 {
     uint64_t State[4];
