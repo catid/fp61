@@ -549,9 +549,10 @@ struct WordWriter
             // Write the word
             WriteU64_LE(Data, workspace);
             Data += 8;
+            available -= 64;
 
             // Keep remaining bits
-            workspace = word >> (available - 64);
+            workspace = word >> (61 - available);
         }
 
         Workspace = workspace;

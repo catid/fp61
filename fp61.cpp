@@ -193,7 +193,7 @@ uint64_t WordReader::Read()
             Bytes = 0;
         }
 
-        r = workspace | (word << available);
+        r = (workspace | (word << available)) & kPrime;
         workspace = word >> (61 - available);
     }
 

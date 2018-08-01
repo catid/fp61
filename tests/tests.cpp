@@ -825,21 +825,33 @@ static bool TestWordSerialization()
     fp61::Random prng;
     prng.Seed(11);
 
-    for (unsigned i = 1; i < 100000; ++i)
+    std::vector<uint8_t> data;
+    std::vector<uint64_t> wordData;
+
+    for (unsigned i = 1; i < 10000; ++i)
     {
         unsigned words = i;
         unsigned bytesNeeded = fp61::WordWriter::BytesNeeded(words);
-        std::vector<uint8_t> data(bytesNeeded, 0);
+
+        data.resize(bytesNeeded);
+        wordData.resize(words);
 
         writer.BeginWrite(&data[0]);
         reader.BeginRead(&data[0], bytesNeeded);
 
         for (unsigned j = 0; j < words; ++j)
         {
-            uint64_t w = prng.NextFp();
+            // Generate a value from 0..p because the writer technically does not care about staying within the field
+            uint64_t w = prng.Next() & MASK61;
+            wordData[j] = w;
             writer.Write(w);
+        }
+        writer.Finalize();
+
+        for (unsigned j = 0; j < words; ++j)
+        {
             uint64_t u = reader.Read();
-            if (u != w)
+            if (u != wordData[j])
             {
                 cout << "TestWordSerialization failed (readback failed) at i = " << i << " j = " << j << endl;
                 FP61_DEBUG_BREAK();
@@ -865,6 +877,9 @@ int main()
     if (!TestRandom()) {
         result = FP61_RET_FAIL;
     }
+    if (!TestWordSerialization()) {
+        result = FP61_RET_FAIL;
+    }
     if (!TestNegate()) {
         result = FP61_RET_FAIL;
     }
@@ -884,9 +899,6 @@ int main()
         result = FP61_RET_FAIL;
     }
     if (!TestByteReader()) {
-        result = FP61_RET_FAIL;
-    }
-    if (!TestWordSerialization()) {
         result = FP61_RET_FAIL;
     }
 
