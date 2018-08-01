@@ -846,7 +846,7 @@ static bool TestWordSerialization()
             wordData[j] = w;
             writer.Write(w);
         }
-        writer.Finalize();
+        writer.Flush();
 
         for (unsigned j = 0; j < words; ++j)
         {

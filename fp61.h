@@ -428,6 +428,9 @@ struct ByteReader
 
     Call WordCount() to calculate the number of words to expect to read from
     a given number of bytes.
+
+    Call BeginRead() to start reading.
+    Call Read() to retrieve each consecutive word.
 */
 struct WordReader
 {
@@ -504,6 +507,10 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value);
 
     Call BytesNeeded() to calculate the number of bytes needed to store the
     given number of Fp words.
+
+    Call BeginWrite() to start writing.
+    Call Write() to write the next word.
+    Call Flush() to write the last few bytes.
 */
 struct WordWriter
 {
@@ -559,8 +566,9 @@ struct WordWriter
         Available = available;
     }
 
-    /// Finalize the output, writing fractions of a word if needed
-    FP61_FORCE_INLINE void Finalize()
+    /// Flush the output, writing fractions of a word if needed.
+    /// This must be called or the output may be truncated.
+    FP61_FORCE_INLINE void Flush()
     {
         // Write the number of available bytes
         WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
