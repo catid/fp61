@@ -371,6 +371,15 @@ static const uint64_t kAmbiguity = kPrime - 1;
     Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
     Pads the final < 8 bytes with zeros.
 
+    This takes care of the ambiguity between 2^61-1 and 0 by emitting one extra
+    bit for values >= 2^61-2, which is 0 for 2^61-2 and 1 for 2^61-1.  This can
+    slightly expand the input data by a few bits overall.  It may be a good idea
+    to XOR input data by a random sequence to randomize the odds of expanding
+    depending on the application.
+
+    Call ByteReader::MaxWords() to calculate the maximum number of words that
+    can be generated for worst-case input of all FFF...FFs.
+
     Define FP61_SAFE_MEMORY_ACCESSES if the platform does not support unaligned
     reads and the input data is unaligned, or the platform is big-endian.
 
@@ -386,6 +395,17 @@ struct ByteReader
     uint64_t Workspace;
     int Available;
 
+
+    /// Calculates and returns the maximum number of Fp field words that may be
+    /// produced by the ByteReader.
+    static FP61_FORCE_INLINE unsigned MaxWords(unsigned bytes)
+    {
+        unsigned bits = bytes * 8;
+
+        // Round up to the nearest word.
+        // All words may be expanded by one bit, hence the (bits/61) factor.
+        return (bits + (bits / 61) + 60) / 61;
+    }
 
     /// Begin reading data
     void BeginRead(const uint8_t* data, unsigned bytes);

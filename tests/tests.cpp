@@ -666,6 +666,14 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
         return false;
     }
 
+    const unsigned maxWords = fp61::ByteReader::MaxWords(bytes);
+    if (maxWords < actualReads)
+    {
+        FP61_DEBUG_BREAK();
+        cout << "TestByteReader failed (MaxWords wrong) for bytes=" << bytes << endl;
+        return false;
+    }
+
     return true;
 }
 
