@@ -143,6 +143,37 @@ Reading Byte Data (e.g. from a file or packet) Into 61-bit Field Words:
     Call ReadNext() repeatedly to read all words from the data.
     It will return ReadResult::Empty when all bits are empty.
 
+Writing Fp Words (e.g. storing field words to file or packet):
+
+    WordWriter
+
+    Writes a series of 61-bit finalized Fp field elements to a byte array.
+    The resulting data can be read by WordReader.
+
+    Call BytesNeeded() to calculate the number of bytes needed to store the
+    given number of Fp words.
+
+    Call BeginWrite() to start writing.
+    Call Write() to write the next word.
+    Call Flush() to write the last few bytes.
+
+Reading Fp Words (e.g. from a file or packet):
+
+    WordReader
+
+    Reads a series of 61-bit finalized Fp field elements from a byte array.
+
+    This differs from ByteReader in two ways:
+    (1) It does not have to handle the special case of all ffffs.
+    (2) It terminates deterministically at WordCount() words rather than
+    based on the contents of the data.
+
+    Call WordCount() to calculate the number of words to expect to read from
+    a given number of bytes.
+
+    Call BeginRead() to start reading.
+    Call Read() to retrieve each consecutive word.
+
 
 #### Comparing Fp61 to 8-bit and 16-bit Galois fields:
 
