@@ -1,5 +1,7 @@
 # Fp61
-## Finite field arithmetic modulo 2^61-1
+## Finite field arithmetic modulo 2^61-1 in C++
+
+Integer Arithmetic Modulo Mersenne Prime 2^61-1 in C++
 
 This software implements arithmetic modulo the Mersenne prime p = 2^61-1.
 
@@ -7,13 +9,11 @@ It takes advantage of the commonly available fast 64x64->128 multiplier
 to accelerate finite (base) field arithmetic.  So it runs a lot faster
 when built into a 64-bit executable.
 
-This math code offers full use of lazy reduction techniques,
-via fp61_partial_reduce().
+This math code offers use of lazy reduction techniques for speed,
+via fp61::PartialReduce().
+
 + Addition of 8 values can be evaluated before reduction.
 + Sums of 4 products can be evaluated with partial reductions.
-
-It is for the most part constant-time, though not intended for cryptography.
-I wrote the library to benchmark this field for software erasure codes.
 
 ## API
 
@@ -22,31 +22,31 @@ Subtraction is implemented via Negation.
 
 Partial Reduction from full 64 bits to 62 bits:
 
-    fp61_partial_reduce()
+    r = fp61::PartialReduce(x)
 
-    Partially reduce a value (mod p).  This clears bits #63 and #62.
+    Partially reduce x (mod p).  This clears bits #63 and #62.
 
-    The result can be passed directly to fp61_add4(), fp61_mul(),
-    and fp61_reduce_finalize().
+    The result can be passed directly to fp61::Add4(), fp61::Multiply(),
+    and fp61::Finalize().
 
 Final Reduction from 64 bits to <p (within the field Fp):
 
-    fp61_reduce_finalize()
+    r = fp61::Finalize(x)
 
-    Finalize reduction of a value (mod p) that was partially reduced
+    Finalize reduction of x (mod p) from PartialReduce()
     Preconditions: Bits #63 and #62 are clear and x != 0x3ffffffffffffffeULL
 
     This function fails for x = 0x3ffffffffffffffeULL.
     The partial reduction function does not produce this bit pattern for any
     input, so this exception is allowed because I'm assuming the input comes
-    from fp61_partial_reduce().  So, do not mask down to 62 random bits and
+    from fp61::PartialReduce().  So, do not mask down to 62 random bits and
     pass to this function because it can fail in this one case.
 
-    Returns a value less than p.
+    Returns a value in Fp (less than p).
 
 Chained Addition of Four Values:
 
-    fp61_add4()
+    r = fp61::Add4(x, y, z, w)
 
     Sum x + y + z + w (without full reduction modulo p).
     Preconditions: x,y,z,w <2^62
@@ -54,31 +54,30 @@ Chained Addition of Four Values:
     Probably you will want to just inline this code and follow the pattern,
     since being restricted to adding 4 things at a time is kind of weird.
 
-    The result can be passed directly to fp61_add4(), fp61_mul(), and
-    fp61_reduce_finalize().
+    The result can be passed directly to fp61::Add4(), fp61::Multiply(), and
+    fp61::Finalize().
 
 You can also use normal addition but you have to be careful about bit overflow.
 
 Negation:
 
-    r = fp61_neg(x)
+    r = fp61::Negate(x)
 
     r = -x (without reduction modulo p)
     Preconditions: x <= p
 
     The input needs to be have bits #63 #62 #61 cleared.
-    This can be ensured by calling fp61_partial_reduce() and
-    fp61_reduce_finalize() first.  Since this is more expensive than addition
+    This can be ensured by calling fp61::PartialReduce() and
+    fp61::Finalize() first.  Since this is more expensive than addition
     it is best to reorganize operations to avoid needing this reduction.
 
     Return a value <= p.
 
-For subtraction, use fp61_neg() and fp61_add4().
-As in: x + (-y)
+For subtraction, use fp61::Negate() and add: x + (-y).
 
 Multiplication:
 
-    r = fp61_mul(x, y)
+    r = fp61::Multiply(x, y)
 
     r = x * y (with partial reduction modulo p)
 
@@ -86,7 +85,7 @@ Multiplication:
 
         The number of bits between x and y must be less than 124 bits.
 
-        Call fp61_partial_reduce() to reduce inputs if needed,
+        Call fp61::PartialReduce() to reduce inputs if needed,
         which makes sure that both inputs are 62 bits or fewer.
 
         Example: If x <= 2^62-1 (62 bits), then y <= 2^62-1 (62 bits).
@@ -100,11 +99,11 @@ Multiplication:
     Result:
 
         The result is stored in bits #61 to #0 (62 bits of the word).
-        Call fp61_final_reduce() to reduce the result to 61 bits.
+        Call fp61::Finalize() to reduce the result to 61 bits.
 
 Modular Multiplicative Inverse:
 
-    r = fp61_inv(x)
+    r = fp61::Inverse(x)
 
     r = x^-1 (mod p)
     The input value x can be any 64-bit value.
@@ -119,6 +118,31 @@ Modular Multiplicative Inverse:
     0 < result < p
 
     If the inverse does not exist, it returns 0.
+
+Reading Byte Data (e.g. from a file or packet) Into 61-bit Field Words:
+
+    ByteReader
+
+    Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
+    Pads the final < 8 bytes with zeros.
+
+    This takes care of the ambiguity between 2^61-1 and 0 by emitting one extra
+    bit for values >= 2^61-2, which is 0 for 2^61-2 and 1 for 2^61-1.  This can
+    slightly expand the input data by a few bits overall.  It may be a good idea
+    to XOR input data by a random sequence to randomize the odds of expanding
+    depending on the application.
+
+    Call ByteReader::MaxWords() to calculate the maximum number of words that
+    can be generated for worst-case input of all FFF...FFs.
+
+    Define FP61_SAFE_MEMORY_ACCESSES if the platform does not support unaligned
+    reads and the input data is unaligned, or the platform is big-endian.
+
+    Call BeginRead() to begin reading.
+
+    Call ReadNext() repeatedly to read all words from the data.
+    It will return ReadResult::Empty when all bits are empty.
+
 
 #### Comparing Fp61 to 8-bit and 16-bit Galois fields:
 
