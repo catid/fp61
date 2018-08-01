@@ -61,41 +61,6 @@ static std::string HexString(uint64_t x)
 
 
 //------------------------------------------------------------------------------
-// PCG PRNG
-
-/// From http://www.pcg-random.org/
-class PCGRandom
-{
-public:
-    void Seed(uint64_t y, uint64_t x = 0)
-    {
-        State = 0;
-        Inc = (y << 1u) ^ 1442695040888963407ULL; // Tweaked -cat
-        Next();
-        State += x;
-        Next();
-    }
-
-    uint32_t Next()
-    {
-        const uint64_t oldstate = State;
-        State = oldstate * UINT64_C(6364136223846793005) + Inc;
-        const uint32_t xorshifted = (uint32_t)(((oldstate >> 18) ^ oldstate) >> 27);
-        const uint32_t rot = oldstate >> 59;
-        return (xorshifted >> rot) | (xorshifted << ((uint32_t)(-(int32_t)rot) & 31));
-    }
-
-    uint64_t Next64()
-    {
-        const uint64_t x = Next();
-        return (x << 32) | Next();
-    }
-
-    uint64_t State = 0, Inc = 0;
-};
-
-
-//------------------------------------------------------------------------------
 // Tests: Negate
 
 static bool test_negate(uint64_t x)
@@ -791,6 +756,35 @@ bool TestByteReader()
 
 
 //------------------------------------------------------------------------------
+// Tests: WordReader/WordWriter
+
+static void TestWordSerialization()
+{
+    fp61::WordWriter writer;
+    fp61::WordReader reader;
+
+    PCGRandom prng;
+    prng.Seed(11);
+
+    for (unsigned i = 1; i < 1000; ++i)
+    {
+        unsigned words = i;
+        unsigned bytesNeeded = fp61::WordWriter::BytesNeeded(words);
+        std::vector<uint8_t> data(bytesNeeded, 0);
+
+        writer.BeginWrite(&data[0]);
+        reader.BeginRead(&data[0], bytesNeeded);
+
+        for (unsigned j = 0; j < words; ++j)
+        {
+            uint64_t w = fp61::Finalize(prng.Next64() & fp61::kPrime);
+            writer.Write()
+        }
+    }
+}
+
+
+//------------------------------------------------------------------------------
 // Entrypoint
 
 int main()
@@ -819,6 +813,9 @@ int main()
         result = FP61_RET_FAIL;
     }
     if (!TestByteReader()) {
+        result = FP61_RET_FAIL;
+    }
+    if (!TestWordSerialization()) {
         result = FP61_RET_FAIL;
     }
 

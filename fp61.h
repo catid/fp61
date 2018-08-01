@@ -456,13 +456,6 @@ struct WordReader
     /// It is up to the application to know when to stop reading,
     /// based on the WordCount() count of words to read.
     uint64_t Read();
-
-    /// Finalize the output, writing fractions of a word if needed
-    FP61_FORCE_INLINE void Finalize()
-    {
-        // Write the number of available bytes
-        WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
-    }
 };
 
 
@@ -570,6 +563,65 @@ struct WordWriter
     {
         // Write the number of available bytes
         WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
+    }
+};
+
+
+//------------------------------------------------------------------------------
+// Random Numbers
+
+#define CAT_ROL64(x, bits) ( ((uint64_t)(x) << (bits)) | ((uint64_t)(x) >> (64 - (bits))) )
+
+struct Random
+{
+    uint64_t State[4];
+
+
+    /// Seed the generator
+    void Seed(uint64_t x, uint64_t y = 0);
+
+    /// Get the next 64-bit random number.
+    /// The low 3 bits are slightly weak according to the authors.
+    // From http://xoshiro.di.unimi.it/xoshiro256plus.c
+    // Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)
+    FP61_FORCE_INLINE uint64_t Next()
+    {
+        uint64_t s0 = State[0], s1 = State[1], s2 = State[2], s3 = State[3];
+
+        const uint64_t result = s0 + s3;
+
+        const uint64_t t = s1 << 17;
+        s2 ^= s0;
+        s3 ^= s1;
+        s1 ^= s2;
+        s0 ^= s3;
+        s2 ^= t;
+        s3 = CAT_ROL64(s3, 45);
+
+        State[0] = s0, State[1] = s1, State[2] = s2, State[3] = s3;
+
+        return result;
+    }
+
+    /// Get the next random value between 0..p
+    uint64_t NextFp()
+    {
+        // Pick high bits as recommended by Xoroshiro authors
+        uint64_t word = Next() >> 3;
+
+        // If word + 1 overflows, then subtract 1.
+        // This converts fffff to ffffe and slightly biases the PRNG.
+        word -= (word + 1) >> 61;
+
+        return word;
+    }
+
+    /// Get the next random value between 1..p
+    uint64_t NextNonzeroFp()
+    {
+        // FIXME
+
+        return word;
     }
 };
 

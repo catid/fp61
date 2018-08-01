@@ -226,4 +226,28 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value)
 }
 
 
+//------------------------------------------------------------------------------
+// Random
+
+// From http://xoshiro.di.unimi.it/splitmix64.c
+// Written in 2015 by Sebastiano Vigna (vigna@acm.org)
+static uint64_t HashU64(uint64_t x)
+{
+    x += 0x9e3779b97f4a7c15;
+    uint64_t z = x;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+    return z ^ (z >> 31);
+}
+
+void Random::Seed(uint64_t x, uint64_t y)
+{
+    State[0] = HashU64(x);
+    State[1] = HashU64(y);
+    State[2] = x;
+    State[3] = y;
+}
+
+
+
 } // namespace fp61
