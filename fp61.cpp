@@ -233,8 +233,6 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value)
 // Written in 2015 by Sebastiano Vigna (vigna@acm.org)
 static uint64_t HashU64(uint64_t x)
 {
-    // Note there is an obvious weak key here that breaks the generator
-    // TBD: Add something else after the muliply to fix this?
     x += 0x9e3779b97f4a7c15;
     uint64_t z = x;
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
