@@ -587,7 +587,7 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
     reader.BeginRead(data, bytes);
 
     // Round up to the next 61 bits
-    unsigned expectedReads = (bytes * 8 + 60) / 61;
+    uint64_t expandedBits = bytes * 8;
     unsigned actualReads = 0;
     unsigned bits = 0;
     bool packed = false;
@@ -599,9 +599,13 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
         unsigned readStart = bits / 8;
         if (readStart >= bytes)
         {
-            FP61_DEBUG_BREAK();
-            cout << "TestByteReader failed (too many reads) for bytes=" << bytes << " actualReads=" << actualReads << endl;
-            return false;
+            // We can read one extra bit if the packing is the last thing
+            if (!packed || readStart != bytes)
+            {
+                FP61_DEBUG_BREAK();
+                cout << "TestByteReader failed (too many reads) for bytes=" << bytes << " actualReads=" << actualReads << endl;
+                return false;
+            }
         }
 
         int readBytes = (int)bytes - (int)readStart;
@@ -629,6 +633,7 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
             x <<= 1;
             x |= packedBit;
             bits += 60;
+            ++expandedBits;
         }
         else
         {
@@ -653,6 +658,7 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
         ++actualReads;
     }
 
+    const unsigned expectedReads = (unsigned)((expandedBits + 60) / 61);
     if (actualReads != expectedReads)
     {
         FP61_DEBUG_BREAK();
@@ -757,15 +763,12 @@ bool TestByteReader()
             for (unsigned k = 0; k < i; k += 8)
             {
                 uint64_t w;
-                if (prng.Next() % 100 <= 3)
-                {
+                if (prng.Next() % 100 <= 3) {
                     w = ~(uint64_t)0;
                 }
-                else
-                {
+                else {
                     w = prng.Next64();
                 }
-
                 fp61::WriteU64_LE(&randBytes[k], w);
             }
 

@@ -157,6 +157,7 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
 
     Workspace = workspace;
     Available = nextAvailable;
+
     fpOut = r;
     return ReadResult::Success;
 }
