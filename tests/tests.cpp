@@ -717,7 +717,7 @@ bool TestByteReader()
     }
 
     uint8_t allones[16 + 8] = {
-        255,255,255,255,255,255,255,255,
+        254,255,255,255,255,255,255,255,
         255,255,255,255,255,255,255,255,
         0
     };
@@ -730,7 +730,7 @@ bool TestByteReader()
     }
 
     uint8_t mixed[20 + 8] = {
-        255,255,255,255,255,255,255,255,0, // Inject a non-overflowing bit in the middle
+        254,255,255,255,255,255,255,255,0, // Inject a non-overflowing bit in the middle
         255,255,255,255,255,255,255,
         255,255,255,255,
         0
@@ -743,9 +743,7 @@ bool TestByteReader()
         }
     }
 
-    // TODO: Also test fffe
-
-    static const unsigned kTestRange = 1000000;
+    static const unsigned kTestRange = 32000;
     vector<uint8_t> randBytes(kTestRange + 8, 0); // +8 to avoid bounds checking
 
     PCGRandom prng;
@@ -759,13 +757,11 @@ bool TestByteReader()
             for (unsigned k = 0; k < i; k += 8)
             {
                 uint64_t w;
-#if 0
                 if (prng.Next() % 100 <= 3)
                 {
                     w = ~(uint64_t)0;
                 }
                 else
-#endif
                 {
                     w = prng.Next64();
                 }

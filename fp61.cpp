@@ -105,40 +105,41 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
     // If enough bits are already available:
     if (available >= 61)
     {
-        fpOut = workspace & kPrime;
-        Workspace = workspace >> 61;
-        Available = available - 61;
-        return ReadResult::Success;
-    }
-
-    unsigned bytes = Bytes;
-
-    // Read a word to fill in the difference
-    if (bytes >= 8)
-    {
-        word = ReadU64_LE(Data);
-        Data += 8;
-        Bytes = bytes - 8;
-        nextAvailable = available + 3;
+        r = workspace & kPrime;
+        workspace >>= 61;
+        nextAvailable = available - 61;
     }
     else
     {
-        if (bytes == 0 && available <= 0) {
-            return ReadResult::Empty;
+        unsigned bytes = Bytes;
+
+        // Read a word to fill in the difference
+        if (bytes >= 8)
+        {
+            word = ReadU64_LE(Data);
+            Data += 8;
+            Bytes = bytes - 8;
+            nextAvailable = available + 3;
+        }
+        else
+        {
+            if (bytes == 0 && available <= 0) {
+                return ReadResult::Empty;
+            }
+
+            word = ReadBytes_LE(Data, bytes);
+            Bytes = 0;
+
+            // Note this may go negative but we check for that above
+            nextAvailable = available + bytes * 8 - 61;
         }
 
-        word = ReadBytes_LE(Data, bytes);
-        Bytes = 0;
+        // This assumes workspace high bits (beyond `available`) are 0
+        r = (workspace | (word << available)) & kPrime;
 
-        // Note this may go negative but we check for that above
-        nextAvailable = available + bytes * 8 - 61;
+        // Remaining workspace bits are taken from read word
+        workspace = word >> (61 - available);
     }
-
-    // This assumes workspace high bits (beyond `available`) are 0
-    r = (workspace | (word << available)) & kPrime;
-
-    // Remaining workspace bits are taken from read word
-    workspace = word >> (61 - available);
 
     // If there is ambiguity in the representation:
     if (r >= kAmbiguity)
