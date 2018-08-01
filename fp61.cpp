@@ -90,7 +90,7 @@ uint64_t ReadBytes_LE(const uint8_t* data, unsigned bytes)
     return 0;
 }
 
-ReadResult ByteReader::ReadNext(uint64_t& fpOut)
+ReadResult ByteReader::Read(uint64_t& fpOut)
 {
     uint64_t word, r, workspace = Workspace;
     int nextAvailable, available = Available;

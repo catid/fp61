@@ -559,7 +559,7 @@ bool test_byte_reader(const uint8_t* data, unsigned bytes)
     unsigned packedBit = 0;
 
     uint64_t fp;
-    while (fp61::ReadResult::Success == reader.ReadNext(fp))
+    while (fp61::ReadResult::Success == reader.Read(fp))
     {
         unsigned readStart = bits / 8;
         if (readStart >= bytes)

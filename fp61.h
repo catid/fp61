@@ -418,13 +418,18 @@ struct ByteReader
 
     /// Returns ReadResult::Empty when no more data is available.
     /// Otherwise fpOut will be a value between 0 and p-1.
-    ReadResult ReadNext(uint64_t& fpOut);
+    ReadResult Read(uint64_t& fpOut);
 };
 
 /**
     WordReader
 
     Reads a series of 61-bit finalized Fp field elements from a byte array.
+
+    This differs from ByteReader in two ways:
+    (1) It does not have to handle the special case of all ffffs.
+    (2) It terminates deterministically at WordCount() words rather than
+    based on the contents of the data.
 
     Call WordCount() to calculate the number of words to expect to read from
     a given number of bytes.
@@ -504,6 +509,7 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value);
     WordWriter
 
     Writes a series of 61-bit finalized Fp field elements to a byte array.
+    The resulting data can be read by WordReader.
 
     Call BytesNeeded() to calculate the number of bytes needed to store the
     given number of Fp words.
