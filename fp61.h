@@ -408,11 +408,61 @@ struct ByteReader
     }
 
     /// Begin reading data
-    void BeginRead(const uint8_t* data, unsigned bytes);
+    FP61_FORCE_INLINE void BeginRead(const uint8_t* data, unsigned bytes)
+    {
+        Data = data;
+        Bytes = bytes;
+        Workspace = 0;
+        Available = 0;
+    }
 
     /// Returns ReadResult::Empty when no more data is available.
     /// Otherwise fpOut will be a value between 0 and p-1.
     ReadResult ReadNext(uint64_t& fpOut);
+};
+
+/**
+    WordReader
+
+    Reads a series of 61-bit finalized Fp field elements from a byte array.
+
+    Call WordCount() to calculate the number of words to expect to read from
+    a given number of bytes.
+*/
+struct WordReader
+{
+    const uint8_t* Data;
+    unsigned Bytes;
+    uint64_t Workspace;
+    unsigned Available;
+
+
+    /// Calculate the number of words that can be read from a number of bytes
+    static FP61_FORCE_INLINE unsigned WordCount(unsigned bytes)
+    {
+        return ((bytes * 8) + 60) / 61;
+    }
+
+    /// Begin writing to the given memory location
+    FP61_FORCE_INLINE void BeginRead(const uint8_t* data, unsigned bytes)
+    {
+        Data = data;
+        Bytes = bytes;
+        Workspace = 0;
+        Available = 0;
+    }
+
+    /// Read the next word.
+    /// It is up to the application to know when to stop reading,
+    /// based on the WordCount() count of words to read.
+    uint64_t Read();
+
+    /// Finalize the output, writing fractions of a word if needed
+    FP61_FORCE_INLINE void Finalize()
+    {
+        // Write the number of available bytes
+        WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
+    }
 };
 
 
@@ -450,6 +500,78 @@ FP61_FORCE_INLINE void WriteU64_LE(uint8_t* data, uint64_t value)
     *wordPtr = value;
 #endif
 }
+
+/// Write between 0..8 bytes in little-endian byte order
+void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value);
+
+/**
+    WordWriter
+
+    Writes a series of 61-bit finalized Fp field elements to a byte array.
+
+    Call BytesNeeded() to calculate the number of bytes needed to store the
+    given number of Fp words.
+*/
+struct WordWriter
+{
+    uint8_t* Data;
+    uint64_t Workspace;
+    unsigned Available;
+
+
+    /// Calculate the number of bytes that will be written
+    /// for the given number of Fp words.
+    static FP61_FORCE_INLINE unsigned BytesNeeded(unsigned words)
+    {
+        // 61 bits per word
+        const unsigned bits = words * 61;
+
+        // Round up to the next byte
+        return (bits + 7) / 8;
+    }
+
+    /// Begin writing to the given memory location.
+    /// It is up to the application to provide enough space in the buffer by
+    /// using BytesNeeded() to calculate the buffer size.
+    FP61_FORCE_INLINE void BeginWrite(uint8_t* data)
+    {
+        Data = data;
+        Workspace = 0;
+        Available = 0;
+    }
+
+    /// Write the next word
+    FP61_FORCE_INLINE void Write(uint64_t word)
+    {
+        unsigned available = Available;
+        uint64_t workspace = Workspace;
+
+        // Include any bits that fit
+        workspace |= word << available;
+        available += 61;
+
+        // If there is a full word now
+        if (available >= 64)
+        {
+            // Write the word
+            WriteU64_LE(Data, workspace);
+            Data += 8;
+
+            // Keep remaining bits
+            workspace = word >> (available - 64);
+        }
+
+        Workspace = workspace;
+        Available = available;
+    }
+
+    /// Finalize the output, writing fractions of a word if needed
+    FP61_FORCE_INLINE void Finalize()
+    {
+        // Write the number of available bytes
+        WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
+    }
+};
 
 
 } // namespace fp61

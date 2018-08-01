@@ -85,16 +85,9 @@ uint64_t ReadBytes_LE(const uint8_t* data, unsigned bytes)
     case 3: return ((uint32_t)data[2] << 16) | ((uint32_t)data[1] << 8) | data[0];
     case 2: return ((uint32_t)data[1] << 8) | data[0];
     case 1: return data[0];
+    default: break;
     }
     return 0;
-}
-
-void ByteReader::BeginRead(const uint8_t* data, unsigned bytes)
-{
-    Data = data;
-    Bytes = bytes;
-    Workspace = 0;
-    Available = 0;
 }
 
 ReadResult ByteReader::ReadNext(uint64_t& fpOut)
@@ -160,6 +153,76 @@ ReadResult ByteReader::ReadNext(uint64_t& fpOut)
 
     fpOut = r;
     return ReadResult::Success;
+}
+
+uint64_t WordReader::Read()
+{
+    int nextAvailable, available = Available;
+    uint64_t r, workspace = Workspace;
+
+    if (available >= 61)
+    {
+        r = workspace & kPrime;
+        nextAvailable = available - 61;
+        workspace >>= 61;
+    }
+    else
+    {
+        uint64_t word;
+        unsigned bytes = Bytes;
+
+        // If we can read a full word:
+        if (bytes >= 8)
+        {
+            word = ReadU64_LE(Data);
+            Data += 8;
+            Bytes = bytes - 8;
+            nextAvailable = available + 3; // +64 - 61
+        }
+        else
+        {
+            if (bytes == 0 && available <= 0) {
+                return 0; // No data left to read
+            }
+
+            word = ReadBytes_LE(Data, bytes);
+
+            // Note this may go negative but we check for negative above
+            nextAvailable = available + bytes * 8 - 61;
+
+            Bytes = 0;
+        }
+
+        r = workspace | (word << available);
+        workspace = word >> (61 - available);
+    }
+
+    Workspace = workspace;
+    Available = nextAvailable;
+
+    return r;
+}
+
+
+//------------------------------------------------------------------------------
+// Memory Writing
+
+void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value)
+{
+    switch (bytes)
+    {
+    case 8: WriteU64_LE(data, value);
+        return;
+    case 7: data[6] = (uint8_t)(value >> 48);
+    case 6: data[5] = (uint8_t)(value >> 40);
+    case 5: data[4] = (uint8_t)(value >> 32);
+    case 4: WriteU32_LE(data, static_cast<uint32_t>(value));
+        return;
+    case 3: data[2] = (uint8_t)(value >> 16);
+    case 2: data[1] = (uint8_t)(value >> 8);
+    case 1: data[0] = (uint8_t)value;
+    default: break;
+    }
 }
 
 
