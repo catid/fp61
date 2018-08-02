@@ -47,7 +47,7 @@ static const unsigned kRandomTestLoops = 100000;
 static const unsigned kMaxDataLength = 4000;
 #else
 static const unsigned kRandomTestLoops = 10000000;
-static const unsigned kMaxDataLength = 30000;
+static const unsigned kMaxDataLength = 10000;
 #endif
 
 
