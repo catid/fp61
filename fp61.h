@@ -73,10 +73,18 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
     const uint64_t x,
     const uint64_t y)
 {
-    const uint64_t x0 = (uint32_t)x, x1 = x >> 32;
-    const uint64_t y0 = (uint32_t)y, y1 = y >> 32;
-    const uint64_t p11 = x1 * y1, p01 = x0 * y1;
-    const uint64_t p10 = x1 * y0, p00 = x0 * y0;
+    // Form temporary 32-bit words
+    const uint32_t x0 = static_cast<uint32_t>(x);
+    const uint32_t x1 = static_cast<uint32_t>(x >> 32);
+    const uint32_t y0 = static_cast<uint32_t>(y);
+    const uint32_t y1 = static_cast<uint32_t>(y >> 32);
+
+    // Calculate 32x32->64 bit products
+    const uint64_t p11 = static_cast<uint64_t>(x1) * y1;
+    const uint64_t p01 = static_cast<uint64_t>(x0) * y1;
+    const uint64_t p10 = static_cast<uint64_t>(x1) * y0;
+    const uint64_t p00 = static_cast<uint64_t>(x0) * y0;
+
     /*
         This is implementing schoolbook multiplication:
 
@@ -95,7 +103,9 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
     */
 
     // 64-bit product + two 32-bit values
-    const uint64_t middle = p10 + (p00 >> 32) + (uint32_t)p01;
+    const uint64_t middle = p10
+        + static_cast<uint32_t>(p00 >> 32)
+        + static_cast<uint32_t>(p01);
 
     /*
         Proof that 64-bit products can accumulate two more 32-bit values
@@ -109,10 +119,12 @@ FP61_FORCE_INLINE uint64_t Emulate64x64to128(
     */
 
     // 64-bit product + two 32-bit values
-    r_hi = p11 + (middle >> 32) + (p01 >> 32);
+    r_hi = p11
+        + static_cast<uint32_t>(middle >> 32)
+        + static_cast<uint32_t>(p01 >> 32);
 
     // Add LOW PART and lower half of MIDDLE PART
-    return (middle << 32) | (uint32_t)p00;
+    return (middle << 32) | static_cast<uint32_t>(p00);
 }
 
 #if defined(_MSC_VER) && defined(_WIN64)
