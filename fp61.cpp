@@ -135,17 +135,17 @@ ReadResult ByteReader::Read(uint64_t& fpOut)
     }
 
     // If there is ambiguity in the representation:
-    if (r >= kAmbiguity)
+    if (IsU64Ambiguous(r))
     {
         // This will not overflow because available <= 60.
         // We add up to 3 more bits, so adding one more keeps us within 64 bits.
         ++nextAvailable;
 
-        // Insert bit 0 for fffe and 1 for ffff to resolve the ambiguity
-        workspace = (workspace << 1) | (r & 1);
+        // Insert bit 0 for 0ff..ff and 1 for 1ff..ff to resolve the ambiguity
+        workspace = (workspace << 1) | (r >> 60);
 
         // Use kAmbiguity value for a placeholder
-        r = kAmbiguity;
+        r = kAmbiguityMask;
     }
 
     Workspace = workspace;

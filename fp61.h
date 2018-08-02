@@ -358,10 +358,43 @@ enum class ReadResult
     Empty    ///< No data remaining to read
 };
 
-// Words of 2^61-2 or higher are ambiguous because the field prime is 2^61-1
-// so it could represent either 2^61-2 or 2^61-1.  The ByteReader will insert an
-// extra bit = 0 for p-1, = 1 for p after the ambiguous value is seen.
-static const uint64_t kAmbiguity = kPrime - 1;
+/**
+    Fitting Bytes Into Words
+
+    When converting byte data to words, a value of 2^61-1 is problematic
+    because it does not fit in the field Fp that ranges from 0..(2^61-2).
+
+    One way to fit these values into the field would be to emit 1ff..ffe
+    for both 1ff..ffe and 1ff..fff, and then inject a new bit after it to
+    allow the ByteWriter code to reverse the transformation.  The problem
+    with this is that the lower bit is modified, which is the same one
+    that signals how the prior word is modified.
+
+    So a better way to fix 1ff..fff is to make it ambiguous with 0ff..fff,
+    where the high bit of the word is flipped.  Now when 0ff..fff is seen
+    by the ByteWriter, it knows to check the next word's low bit and
+    optionally reverse it back to 1ff..fff.
+
+    As an aside, we want to design the ByteReader to be as fast as possible
+    because it is used by the erasure code encoder - The decoder must only
+    reverse this transformation for any lost data, so it can be slower.
+
+    It may be a good idea to XOR input data by a random sequence to randomize
+    the odds of using extra bits, depending on the application.
+*/
+static const uint64_t kAmbiguityMask = ((uint64_t)1 << 60) - 1; // 0x0ff...fff
+
+/// Returns true if the U64 word provided needs an extra bit to represent it
+FP61_FORCE_INLINE bool IsU64Ambiguous(uint64_t u64_word)
+{
+    return (u64_word & kAmbiguityMask) == kAmbiguityMask;
+}
+
+/// Returns true if this Fp word could have originally been 0ff..ff or 1ff..ff
+FP61_FORCE_INLINE bool IsFpAmbiguous(uint64_t fp_word)
+{
+    return fp_word == kAmbiguityMask;
+}
 
 /**
     ByteReader
@@ -369,11 +402,7 @@ static const uint64_t kAmbiguity = kPrime - 1;
     Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
     Pads the final < 8 bytes with zeros.
 
-    This takes care of the ambiguity between 2^61-1 and 0 by emitting one extra
-    bit for values >= 2^61-2, which is 0 for 2^61-2 and 1 for 2^61-1.  This can
-    slightly expand the input data by a few bits overall.  It may be a good idea
-    to XOR input data by a random sequence to randomize the odds of expanding
-    depending on the application.
+    See the comments on Fitting Bytes Into Words for how this works.
 
     Call ByteReader::MaxWords() to calculate the maximum number of words that
     can be generated for worst-case input of all FFF...FFs.
@@ -446,7 +475,8 @@ struct WordReader
     /// Calculate the number of words that can be read from a number of bytes
     static FP61_FORCE_INLINE unsigned WordCount(unsigned bytes)
     {
-        return ((bytes * 8) + 60) / 61;
+        // Note that only whole (not partial) words can be read, so this rounds down
+        return (bytes * 8) / 61;
     }
 
     /// Begin writing to the given memory location
@@ -514,11 +544,14 @@ void WriteBytes_LE(uint8_t* data, unsigned bytes, uint64_t value);
 
     Call BeginWrite() to start writing.
     Call Write() to write the next word.
+
     Call Flush() to write the last few bytes.
+    Flush() returns the number of overall written bytes.
 */
 struct WordWriter
 {
     uint8_t* Data;
+    uint8_t* DataWritePtr;
     uint64_t Workspace;
     unsigned Available;
 
@@ -540,6 +573,7 @@ struct WordWriter
     FP61_FORCE_INLINE void BeginWrite(uint8_t* data)
     {
         Data = data;
+        DataWritePtr = data;
         Workspace = 0;
         Available = 0;
     }
@@ -554,12 +588,12 @@ struct WordWriter
         workspace |= word << available;
         available += 61;
 
-        // If there is a full word now
+        // If there is a full word now:
         if (available >= 64)
         {
             // Write the word
-            WriteU64_LE(Data, workspace);
-            Data += 8;
+            WriteU64_LE(DataWritePtr, workspace);
+            DataWritePtr += 8;
             available -= 64;
 
             // Keep remaining bits
@@ -572,10 +606,94 @@ struct WordWriter
 
     /// Flush the output, writing fractions of a word if needed.
     /// This must be called or the output may be truncated.
-    FP61_FORCE_INLINE void Flush()
+    /// Returns the number of bytes written overall.
+    FP61_FORCE_INLINE unsigned Flush()
     {
+        const unsigned finalBytes = (Available + 7) / 8;
+
         // Write the number of available bytes
-        WriteBytes_LE(Data, (Available + 7) / 8, Workspace);
+        WriteBytes_LE(DataWritePtr, finalBytes, Workspace);
+
+        // Calculate number of bytes written overall
+        const uintptr_t writtenBytes = static_cast<uintptr_t>(DataWritePtr - Data) + finalBytes;
+
+        return static_cast<unsigned>(writtenBytes);
+    }
+};
+
+/**
+    ByteWriter
+
+    Writes a series of 61-bit finalized Fp field elements to a byte array,
+    reversing the encoding of ByteReader.  This is different from WordWriter
+    because it can also write 61-bit values that are all ones (outside of Fp).
+
+    See the comments on Fitting Bytes Into Words for how this works.
+
+    Call MaxBytesNeeded() to calculate the maximum number of bytes needed
+    to store the given number of Fp words.
+
+    Call BeginWrite() to start writing.
+    Call Write() to write the next word.
+
+    Call Flush() to write the last few bytes.
+    Flush() returns the number of overall written bytes.
+*/
+struct ByteWriter
+{
+    WordWriter Writer;
+    bool Packed;
+
+    /// Calculate the maximum number of bytes that will be written for the
+    /// given number of Fp words.  May be up to 1.6% larger than necessary.
+    static FP61_FORCE_INLINE unsigned MaxBytesNeeded(unsigned words)
+    {
+        return WordWriter::BytesNeeded(words);
+    }
+
+    /// Begin writing to the given memory location.
+    /// It is up to the application to provide enough space in the buffer by
+    /// using MaxBytesNeeded() to calculate the buffer size.
+    FP61_FORCE_INLINE void BeginWrite(uint8_t* data)
+    {
+        Writer.BeginWrite(data);
+        Packed = false;
+    }
+
+    /// Write the next word
+    FP61_FORCE_INLINE void Write(uint64_t word)
+    {
+        const unsigned word_bits = (word == kAmbiguityMask) ? 60 : 61;
+
+        unsigned available = Writer.Available;
+        uint64_t workspace = Writer.Workspace;
+
+        // Include any bits that fit
+        workspace |= word << available;
+        available += word_bits;
+
+        // If there is a full word now:
+        if (available >= 64)
+        {
+            // Write the word
+            WriteU64_LE(Writer.DataWritePtr, workspace);
+            Writer.DataWritePtr += 8;
+            available -= 64;
+
+            // Keep remaining bits
+            workspace = word >> (word_bits - available);
+        }
+
+        Writer.Workspace = workspace;
+        Writer.Available = available;
+    }
+
+    /// Flush the output, writing fractions of a word if needed.
+    /// This must be called or the output may be truncated.
+    /// Returns the number of bytes written overall.
+    FP61_FORCE_INLINE unsigned Flush()
+    {
+        return Writer.Flush();
     }
 };
 
@@ -588,7 +706,7 @@ struct WordWriter
 /**
     Random
 
-    Xoroshiro256+ based pseudo-random number generator (PRNG) that can generate
+    Xoshiro256+ based pseudo-random number generator (PRNG) that can generate
     random numbers between 1..p.  NextNonzeroFp() is mainly intended to be used
     for producing convolutional code coefficients to multiply by the data.
 
@@ -628,9 +746,9 @@ struct Random
         return result;
     }
 
-    static FP61_FORCE_INLINE uint64_t RandToFp(uint64_t word)
+    static FP61_FORCE_INLINE uint64_t ConvertRandToFp(uint64_t word)
     {
-        // Pick high bits as recommended by Xoroshiro authors
+        // Pick high bits as recommended by Xoshiro authors
         word >>= 3;
 
         // If word + 1 overflows, then subtract 1.
@@ -640,9 +758,9 @@ struct Random
         return word;
     }
 
-    static FP61_FORCE_INLINE uint64_t RandToNonzeroFp(uint64_t word)
+    static FP61_FORCE_INLINE uint64_t ConvertRandToNonzeroFp(uint64_t word)
     {
-        word = RandToFp(word);
+        word = ConvertRandToFp(word);
 
         // If word - 1 borrows out, then add 1.
         // This converts 0 to 1 and slightly biases the PRNG.
@@ -654,13 +772,13 @@ struct Random
     /// Get the next random value between 0..p
     FP61_FORCE_INLINE uint64_t NextFp()
     {
-        return RandToFp(Next());
+        return ConvertRandToFp(Next());
     }
 
     /// Get the next random value between 1..p
     FP61_FORCE_INLINE uint64_t NextNonzeroFp()
     {
-        return RandToNonzeroFp(Next());
+        return ConvertRandToNonzeroFp(Next());
     }
 };
 

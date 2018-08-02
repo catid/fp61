@@ -115,6 +115,29 @@ Modular Multiplicative Inverse:
 
     If the inverse does not exist, it returns 0.
 
+Fitting Bytes Into Words
+
+    When converting byte data to words, a value of 2^61-1 is problematic
+    because it does not fit in the field Fp that ranges from 0..(2^61-2).
+
+    One way to fit these values into the field would be to emit 1ff..ffe
+    for both 1ff..ffe and 1ff..fff, and then inject a new bit after it to
+    allow the ByteWriter code to reverse the transformation.  The problem
+    with this is that the lower bit is modified, which is the same one
+    that signals how the prior word is modified.
+
+    So a better way to fix 1ff..fff is to make it ambiguous with 0ff..fff,
+    where the high bit of the word is flipped.  Now when 0ff..fff is seen
+    by the ByteWriter, it knows to check the next word's low bit and
+    optionally reverse it back to 1ff..fff.
+
+    As an aside, we want to design the ByteReader to be as fast as possible
+    because it is used by the erasure code encoder - The decoder must only
+    reverse this transformation for any lost data, so it can be slower.
+
+    It may be a good idea to XOR input data by a random sequence to randomize
+    the odds of using extra bits, depending on the application.
+
 Reading Byte Data (e.g. from a file or packet) Into 61-bit Field Words:
 
     ByteReader
@@ -122,11 +145,7 @@ Reading Byte Data (e.g. from a file or packet) Into 61-bit Field Words:
     Reads 8 bytes at a time from the input data and outputs 61-bit Fp words.
     Pads the final < 8 bytes with zeros.
 
-    This takes care of the ambiguity between 2^61-1 and 0 by emitting one extra
-    bit for values >= 2^61-2, which is 0 for 2^61-2 and 1 for 2^61-1.  This can
-    slightly expand the input data by a few bits overall.  It may be a good idea
-    to XOR input data by a random sequence to randomize the odds of expanding
-    depending on the application.
+    See the comments on Fitting Bytes Into Words for how this works.
 
     Call ByteReader::MaxWords() to calculate the maximum number of words that
     can be generated for worst-case input of all FFF...FFs.
@@ -151,7 +170,9 @@ Writing Fp Words (e.g. storing field words to file or packet):
 
     Call BeginWrite() to start writing.
     Call Write() to write the next word.
+
     Call Flush() to write the last few bytes.
+    Flush() returns the number of overall written bytes.
 
 Reading Fp Words (e.g. from a file or packet):
 
@@ -169,6 +190,25 @@ Reading Fp Words (e.g. from a file or packet):
 
     Call BeginRead() to start reading.
     Call Read() to retrieve each consecutive word.
+
+Writing 61-bit Field Words Back Into Byte Data (e.g. recovering a file or packet):
+
+    ByteWriter
+
+    Writes a series of 61-bit finalized Fp field elements to a byte array,
+    reversing the encoding of ByteReader.  This is different from WordWriter
+    because it can also write 61-bit values that are all ones (outside of Fp).
+
+    See the comments on Fitting Bytes Into Words for how this works.
+
+    Call MaxBytesNeeded() to calculate the maximum number of bytes needed
+    to store the given number of Fp words.
+
+    Call BeginWrite() to start writing.
+    Call Write() to write the next word.
+
+    Call Flush() to write the last few bytes.
+    Flush() returns the number of overall written bytes.
 
 Generating random Fp words (e.g. to fill a random matrix):
 
