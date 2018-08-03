@@ -13,5 +13,8 @@ add_library(fp61 ${FP61_LIB_SRCFILES})
 add_executable(tests tests/tests.cpp)
 target_link_libraries(tests fp61)
 
-add_executable(benchmarks tests/benchmarks.cpp)
+add_executable(benchmarks
+	tests/benchmarks.cpp
+	tests/gf256.h
+	tests/gf256.cpp)
 target_link_libraries(benchmarks fp61)

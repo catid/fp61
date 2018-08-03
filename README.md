@@ -1,6 +1,8 @@
 # Fp61
 ## Finite field arithmetic modulo Mersenne prime p = 2^61-1 in C++
 
+### Disclaimer: I don't recommend using Fp61 for erasure codes.  This was an experiment to see how it would perform, and unfortunately the results were not good.  See the benchmarks below.
+
 This software takes advantage of the commonly available fast 64x64->128 multiplier
 to accelerate finite (base) field arithmetic.  So it runs a lot faster
 when built into a 64-bit executable.
@@ -10,6 +12,78 @@ via fp61::PartialReduce().
 
 + Addition of 8 values can be evaluated before reduction.
 + Sums of 4 products can be evaluated with partial reductions.
+
+## Benchmarks
+
+The goal of the benchmarks is to determine how fast Fp61 arithmetic is
+for the purpose of implementing erasure codes in software.
+
+*Drumroll...* Results:
+
+The results are not good at all.  The Fp61 encoder is roughly 20x slower
+than my Galois field code (gf256).  So, I do not recommend using Fp61.
+
+The majority of the slowdown comes from the ByteReader class that needs
+to convert byte data into 61-bit Fp words.  So it seems that having an
+odd field size to achieve lazy reductions does not help performance.
+
+*Sad trombone...*
+
+    Benchmarks for Fp61 erasure codes.  Before running the benchmarks please run the tests to make sure everything's working on your PC.  It's going to run quite a bit faster with 64-bit builds because it takes advantage of the speed of 64-bit multiplications.
+
+    Testing file size = 10 bytes
+    N = 2 :  gf256_MBPS=250 Fp61_MBPS=65 Fp61_OutputBytes=16
+    N = 4 :  gf256_MBPS=305 Fp61_MBPS=116 Fp61_OutputBytes=16
+    N = 8 :  gf256_MBPS=138 Fp61_MBPS=80 Fp61_OutputBytes=16
+    N = 16 :  gf256_MBPS=337 Fp61_MBPS=110 Fp61_OutputBytes=16
+    N = 32 :  gf256_MBPS=711 Fp61_MBPS=242 Fp61_OutputBytes=16
+    N = 64 :  gf256_MBPS=665 Fp61_MBPS=226 Fp61_OutputBytes=16
+    N = 128 :  gf256_MBPS=868 Fp61_MBPS=297 Fp61_OutputBytes=16
+    N = 256 :  gf256_MBPS=713 Fp61_MBPS=240 Fp61_OutputBytes=16
+    N = 512 :  gf256_MBPS=881 Fp61_MBPS=300 Fp61_OutputBytes=16
+    Testing file size = 100 bytes
+    N = 2 :  gf256_MBPS=1234 Fp61_MBPS=214 Fp61_OutputBytes=107
+    N = 4 :  gf256_MBPS=4000 Fp61_MBPS=486 Fp61_OutputBytes=107
+    N = 8 :  gf256_MBPS=2631 Fp61_MBPS=328 Fp61_OutputBytes=107
+    N = 16 :  gf256_MBPS=2051 Fp61_MBPS=300 Fp61_OutputBytes=107
+    N = 32 :  gf256_MBPS=3850 Fp61_MBPS=433 Fp61_OutputBytes=107
+    N = 64 :  gf256_MBPS=3972 Fp61_MBPS=428 Fp61_OutputBytes=107
+    N = 128 :  gf256_MBPS=4397 Fp61_MBPS=444 Fp61_OutputBytes=107
+    N = 256 :  gf256_MBPS=5137 Fp61_MBPS=500 Fp61_OutputBytes=107
+    N = 512 :  gf256_MBPS=5129 Fp61_MBPS=492 Fp61_OutputBytes=107
+    Testing file size = 1000 bytes
+    N = 2 :  gf256_MBPS=10309 Fp61_MBPS=889 Fp61_OutputBytes=1007
+    N = 4 :  gf256_MBPS=15325 Fp61_MBPS=848 Fp61_OutputBytes=1007
+    N = 8 :  gf256_MBPS=9184 Fp61_MBPS=486 Fp61_OutputBytes=1007
+    N = 16 :  gf256_MBPS=12728 Fp61_MBPS=722 Fp61_OutputBytes=1007
+    N = 32 :  gf256_MBPS=11838 Fp61_MBPS=610 Fp61_OutputBytes=1007
+    N = 64 :  gf256_MBPS=10555 Fp61_MBPS=604 Fp61_OutputBytes=1007
+    N = 128 :  gf256_MBPS=11354 Fp61_MBPS=614 Fp61_OutputBytes=1007
+    N = 256 :  gf256_MBPS=14782 Fp61_MBPS=816 Fp61_OutputBytes=1007
+    N = 512 :  gf256_MBPS=18430 Fp61_MBPS=940 Fp61_OutputBytes=1007
+    Testing file size = 10000 bytes
+    N = 2 :  gf256_MBPS=19138 Fp61_MBPS=893 Fp61_OutputBytes=10004
+    N = 4 :  gf256_MBPS=20283 Fp61_MBPS=959 Fp61_OutputBytes=10004
+    N = 8 :  gf256_MBPS=20953 Fp61_MBPS=1010 Fp61_OutputBytes=10004
+    N = 16 :  gf256_MBPS=22893 Fp61_MBPS=1056 Fp61_OutputBytes=10004
+    N = 32 :  gf256_MBPS=24461 Fp61_MBPS=1087 Fp61_OutputBytes=10004
+    N = 64 :  gf256_MBPS=22945 Fp61_MBPS=1057 Fp61_OutputBytes=10004
+    N = 128 :  gf256_MBPS=16939 Fp61_MBPS=982 Fp61_OutputBytes=10004
+    N = 256 :  gf256_MBPS=18608 Fp61_MBPS=927 Fp61_OutputBytes=10004
+    N = 512 :  gf256_MBPS=16662 Fp61_MBPS=734 Fp61_OutputBytes=10004
+    Testing file size = 100000 bytes
+    N = 2 :  gf256_MBPS=22941 Fp61_MBPS=962 Fp61_OutputBytes=100002
+    N = 4 :  gf256_MBPS=22827 Fp61_MBPS=976 Fp61_OutputBytes=100002
+    N = 8 :  gf256_MBPS=16210 Fp61_MBPS=1052 Fp61_OutputBytes=100002
+    N = 16 :  gf256_MBPS=17354 Fp61_MBPS=1044 Fp61_OutputBytes=100002
+    N = 32 :  gf256_MBPS=16976 Fp61_MBPS=1030 Fp61_OutputBytes=100002
+    N = 64 :  gf256_MBPS=13570 Fp61_MBPS=910 Fp61_OutputBytes=100002
+    N = 128 :  gf256_MBPS=10592 Fp61_MBPS=533 Fp61_OutputBytes=100002
+    N = 256 :  gf256_MBPS=10637 Fp61_MBPS=500 Fp61_OutputBytes=100002
+    N = 512 :  gf256_MBPS=11528 Fp61_MBPS=483 Fp61_OutputBytes=100002
+
+Note that near the end it looks like the file sizes are exceeding the processor cache and it starts slowing down by 2x.
+
 
 ## API
 
@@ -271,6 +345,8 @@ Reduction requires about 7 instructions for repeated muliplies.  In an OEF, the 
 #### Ideas for future work:
 
 It may be interesting to use Fp=2^31-1 for mobile targets because the 32x32->64 multiplier that is available is a good fit for this field.  Reduction is simple and may allow for some laziness to cut the reduction costs in half, but it's not clear how it would work out practically without implementing it.
+
+Solinas prime p=2^64-2^32+1 would allow a much less awkward algorithm for packing data into the field, and its reduction is even simpler than the Fp61 prime.
 
 
 #### Credits

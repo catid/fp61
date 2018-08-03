@@ -794,6 +794,28 @@ struct Random
     }
 };
 
+/// Hash a 64-bit value to another 64-bit value
+uint64_t HashU64(uint64_t x);
+
+/// Hash a seed into a value from 1..p-1
+FP61_FORCE_INLINE uint64_t HashToNonzeroFp(uint64_t word)
+{
+    // Run a simple mixer based on HashU64()
+    word += 0x9e3779b97f4a7c15;
+    word = (word ^ (word >> 30)) * 0xbf58476d1ce4e5b9;
+
+    // Take the top 61 bits
+    word >>= 3;
+
+    // Eliminate values = p
+    word -= (word + 1) >> 61;
+
+    // Eliminate values = 0
+    word += (word - 1) >> 63;
+
+    return word;
+}
+
 
 } // namespace fp61
 
