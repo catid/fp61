@@ -21,7 +21,7 @@ for the purpose of implementing erasure codes in software.
 *Drumroll...* Results:
 
 The results are not good at all.  The Fp61 encoder is roughly 20x slower
-than my Galois field code (gf256).  So, I do not recommend using Fp61.
+than my GF(2^8) code (gf256).  So, I do not recommend using Fp61.
 
 The majority of the slowdown comes from the ByteReader class that needs
 to convert byte data into 61-bit Fp words.  So it seems that having an
@@ -298,17 +298,17 @@ Generating random Fp words (e.g. to fill a random matrix):
     Call Next() to produce a random 64-bit number.
 
 
-#### Comparing Fp61 to 8-bit and 16-bit Galois fields:
+#### Comparing Fp61 to GF(2^8) and GF(2^16):
 
-8-bit Galois field math requires SSSE3 instructions (PSHUFB) for best speed, which may not be available.  ARM64 and Intel both support the shuffle instruction.  It falls back to table lookups, which is relatively very slow.
+GF(2^8) math requires SSSE3 instructions (PSHUFB) for best speed, which may not be available.  ARM64 and Intel both support the shuffle instruction.  It falls back to table lookups, which is relatively very slow.
 
-16-bit Galois field math gets awkward and 2x slower to implement.  Awkward: The input data needs to be in 32 byte chunks for best speed, and interleaved in a special way.  Slower: Similar to schoolbook multiplication it requires 4 shuffles instead of 2 for the same amount of data because the base operation is limited to a 4-bit->8-bit lookup table (shuffle).
+GF(2^16) math gets awkward and 2x slower to implement.  Awkward: The input data needs to be in 32 byte chunks for best speed, and interleaved in a special way.  Slower: Similar to schoolbook multiplication it requires 4 shuffles instead of 2 for the same amount of data because the base operation is limited to a 4-bit->8-bit lookup table (shuffle).
 
 Fp61 math runs fastest when a 64x64->128 multiply instruction is available, which is unavailable on ARM64.  It has to use a schoolbook multiplication approach to emulate the wider multiplier, requiring 4 multiplies instead of 1.
 
-Regarding fitting data into the fields, Galois fields have an advantage because input data is in bytes.  Data needs to be packed into Fp61 values in order to work on it, but the encoding is fairly straight-forward.
+Regarding fitting data into the fields, GF(2^8) and GF(2^16) have an advantage because input data is in bytes.  Data needs to be packed into Fp61 values in order to work on it, but the encoding is fairly straight-forward.
 
-Regarding erasure code applications, a random linear code based on 8-bit Galois fields will fail to recover roughly 0.2% of the time, requiring one extra recovery packet.  16-bit Galois fields and Fp61 have almost no overhead.
+Regarding erasure code applications, a random linear code based on GF(2^8) will fail to recover roughly 0.2% of the time, requiring one extra recovery packet.  GF(2^16) and Fp61 have almost no overhead.
 
 
 #### Comparing Fp61 to Fp=2^32-5:
